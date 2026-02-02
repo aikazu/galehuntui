@@ -228,3 +228,62 @@ ScrollBar > .scrollbar--thumb {
 .-disabled {
     opacity: 50%;
 }
+
+/* Profiles Screen */
+.profiles-container {
+    height: 100%;
+    layout: horizontal;
+}
+
+.profiles-sidebar {
+    width: 30%;
+    height: 100%;
+    border-right: solid $border;
+    background: $surface-light;
+    padding: 1;
+}
+
+.profiles-content {
+    width: 1fr;
+    height: 100%;
+    padding: 1 2;
+}
+
+.form-group {
+    height: auto;
+    margin-bottom: 1;
+}
+
+.form-row {
+    height: auto;
+    margin-bottom: 1;
+}
+
+.form-group-half {
+    width: 1fr;
+    height: auto;
+    margin-right: 2;
+}
+
+.sidebar-btn {
+    width: 100%;
+    margin-top: 1;
+}
+
+#profiles-list {
+    height: 1fr;
+    border: solid $border;
+    background: $surface;
+    margin-bottom: 1;
+}
+
+#list-steps {
+    height: 1fr;
+    border: solid $border;
+    background: $surface;
+    margin-bottom: 1;
+}
+
+/* Utilities */
+.mr-1 { margin-right: 1; }
+.mt-1 { margin-top: 1; }
