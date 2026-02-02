@@ -1,0 +1,98 @@
+# Scan Profiles for GaleHunTUI
+# Define different scanning strategies with varying depth and speed
+
+profiles:
+  quick:
+    description: "Fast reconnaissance only - subdomain discovery and HTTP probing"
+    steps:
+      - subfinder
+      - dnsx
+      - httpx
+    concurrency: 20
+    rate_limit: "50/s"
+    timeout: 300
+    use_cases:
+      - "Initial target reconnaissance"
+      - "Quick asset discovery"
+      - "Time-constrained assessments"
+  
+  standard:
+    description: "Balanced recon + vulnerability scanning - recommended for most engagements"
+    steps:
+      - subfinder
+      - dnsx
+      - httpx
+      - katana
+      - gau
+      - nuclei
+    concurrency: 10
+    rate_limit: "30/s"
+    timeout: 1800
+    use_cases:
+      - "General bug bounty hunting"
+      - "Standard security assessments"
+      - "Balanced speed and coverage"
+  
+  deep:
+    description: "Full pipeline with injection testing - comprehensive assessment"
+    steps:
+      - subfinder
+      - dnsx
+      - httpx
+      - katana
+      - gau
+      - nuclei
+      - dalfox
+      - ffuf
+      - sqlmap
+    concurrency: 5
+    rate_limit: "10/s"
+    timeout: 7200
+    use_cases:
+      - "Thorough penetration tests"
+      - "Deep vulnerability discovery"
+      - "Authorized engagements"
+  
+  recon_only:
+    description: "Subdomain enumeration and web crawling without active testing"
+    steps:
+      - subfinder
+      - dnsx
+      - httpx
+      - katana
+      - gau
+    concurrency: 15
+    rate_limit: "40/s"
+    timeout: 900
+    use_cases:
+      - "Passive reconnaissance"
+      - "Asset inventory"
+      - "Pre-engagement scoping"
+  
+  injection_focus:
+    description: "Targeted injection testing on classified URLs"
+    steps:
+      - httpx
+      - dalfox
+      - sqlmap
+      - ffuf
+    concurrency: 5
+    rate_limit: "10/s"
+    timeout: 3600
+    use_cases:
+      - "Focused XSS/SQLi testing"
+      - "Follow-up to recon phase"
+      - "Specific vulnerability validation"
+  
+  nuclei_scan:
+    description: "Nuclei-only vulnerability scanning with all templates"
+    steps:
+      - httpx
+      - nuclei
+    concurrency: 10
+    rate_limit: "30/s"
+    timeout: 1800
+    use_cases:
+      - "Template-based scanning"
+      - "Known vulnerability detection"
+      - "Quick validation"

@@ -1,0 +1,35 @@
+# Example Scope Configuration for GaleHunTUI
+# Copy this file and customize for your target
+
+target:
+  domain: example.com
+
+scope:
+  allowlist:
+    - "*.example.com"
+    - "api.example.com"
+    - "app.example.com"
+  
+  denylist:
+    - "admin.example.com"
+    - "internal.example.com"
+    - "*.staging.example.com"
+    - "*.dev.example.com"
+  
+  exclusions:
+    paths:
+      - "/logout"
+      - "/signout"
+      - "/reset-password"
+      - "/delete-account"
+      - "/admin/*"
+    
+    extensions:
+      - ".pdf"
+      - ".doc"
+      - ".docx"
+      - ".xls"
+      - ".xlsx"
+      - ".zip"
+      - ".tar"
+      - ".gz"

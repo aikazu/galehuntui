@@ -10,6 +10,8 @@ from enum import Enum
 from pathlib import Path
 from typing import Optional
 
+from galehuntui.core.constants import EngagementMode, StepStatus, DEFAULTS
+
 
 # ============================================================================
 # Enums
@@ -39,22 +41,6 @@ class RunState(Enum):
     COMPLETED = "completed"
     FAILED = "failed"
     CANCELLED = "cancelled"
-
-
-class EngagementMode(Enum):
-    """Engagement mode for testing."""
-    BUG_BOUNTY = "bugbounty"
-    AUTHORIZED = "authorized"
-    AGGRESSIVE = "aggressive"
-
-
-class StepStatus(Enum):
-    """Pipeline step execution status."""
-    PENDING = "pending"
-    RUNNING = "running"
-    COMPLETED = "completed"
-    FAILED = "failed"
-    SKIPPED = "skipped"
 
 
 # ============================================================================
@@ -132,9 +118,9 @@ class ScanProfile:
     name: str
     description: str
     steps: list[str]                        # Tool names in execution order
-    concurrency: int = 10                   # Number of concurrent workers
-    rate_limit: str = "30/s"                # Rate limit (e.g., "30/s", "100/s")
-    timeout: int = 1800                     # Total timeout in seconds
+    concurrency: int = DEFAULTS["concurrency"]
+    rate_limit: str = DEFAULTS["rate_limit"]
+    timeout: int = DEFAULTS["timeout"]
     use_cases: list[str] = field(default_factory=list)
     
     def get_rate_limit_value(self) -> int:
@@ -162,12 +148,12 @@ class RunConfig:
     engagement_mode: EngagementMode
     
     # Rate limiting
-    rate_limit_global: int = 30             # Global requests per second
-    rate_limit_per_host: int = 5            # Per-host requests per second
+    rate_limit_global: int = DEFAULTS["global_rate_limit"]
+    rate_limit_per_host: int = DEFAULTS["per_host_rate_limit"]
     
     # Execution parameters
-    concurrency: int = 10                   # Number of workers
-    timeout: int = 1800                     # Total timeout in seconds
+    concurrency: int = DEFAULTS["concurrency"]
+    timeout: int = DEFAULTS["timeout"]
     
     # Pipeline configuration
     enabled_steps: list[str] = field(default_factory=list)

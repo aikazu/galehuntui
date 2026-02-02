@@ -1,0 +1,163 @@
+# Engagement Modes Configuration
+# Defines rate limits, concurrency, and feature availability per mode
+
+modes:
+  bugbounty:
+    description: "Conservative settings for bug bounty programs"
+    rate_limit:
+      global: 30
+      per_host: 5
+    concurrency:
+      min: 5
+      max: 10
+    features:
+      sqlmap_dump: false
+      brute_force: false
+      auth_testing: false
+      dos_probes: false
+    scope_enforcement: strict
+  
+  authorized:
+    description: "Balanced settings for authorized penetration tests"
+    rate_limit:
+      global: 100
+      per_host: 20
+    concurrency:
+      min: 20
+      max: 50
+    features:
+      sqlmap_dump: on_demand
+      brute_force: on_demand
+      auth_testing: true
+      dos_probes: false
+    scope_enforcement: enforced
+  
+  aggressive:
+    description: "Maximum throughput for controlled environments"
+    rate_limit:
+      global: 500
+      per_host: 100
+    concurrency:
+      min: 50
+      max: 100
+    features:
+      sqlmap_dump: true
+      brute_force: true
+      auth_testing: true
+      dos_probes: on_demand
+    scope_enforcement: optional
+
+tools:
+  subfinder:
+    per_mode:
+      bugbounty:
+        sources: ["censys", "securitytrails", "shodan"]
+        recursive: false
+        timeout: 180
+      authorized:
+        sources: ["all"]
+        recursive: true
+        timeout: 300
+      aggressive:
+        sources: ["all"]
+        recursive: true
+        timeout: 600
+  
+  httpx:
+    per_mode:
+      bugbounty:
+        threads: 50
+        timeout: 10
+        retries: 1
+      authorized:
+        threads: 100
+        timeout: 15
+        retries: 2
+      aggressive:
+        threads: 200
+        timeout: 20
+        retries: 3
+  
+  nuclei:
+    per_mode:
+      bugbounty:
+        templates: ["cves", "exposures", "vulnerabilities"]
+        severity: ["critical", "high", "medium"]
+        rate_limit: 150
+      authorized:
+        templates: ["cves", "exposures", "vulnerabilities", "misconfiguration"]
+        severity: ["critical", "high", "medium", "low"]
+        rate_limit: 500
+      aggressive:
+        templates: ["all"]
+        severity: ["critical", "high", "medium", "low", "info"]
+        rate_limit: 1000
+  
+  dalfox:
+    per_mode:
+      bugbounty:
+        worker: 10
+        delay: 100
+        timeout: 10
+        skip_bav: false
+      authorized:
+        worker: 50
+        delay: 50
+        timeout: 15
+        skip_bav: false
+      aggressive:
+        worker: 100
+        delay: 0
+        timeout: 20
+        skip_bav: true
+  
+  sqlmap:
+    per_mode:
+      bugbounty:
+        technique: "BE"
+        level: 1
+        risk: 1
+        dump: false
+        timeout: 300
+      authorized:
+        technique: "BEUST"
+        level: 3
+        risk: 2
+        dump: on_demand
+        timeout: 600
+      aggressive:
+        technique: "BEUSTQ"
+        level: 5
+        risk: 3
+        dump: true
+        timeout: 1200
+  
+  ffuf:
+    per_mode:
+      bugbounty:
+        threads: 20
+        rate: 30
+        timeout: 10
+      authorized:
+        threads: 50
+        rate: 100
+        timeout: 15
+      aggressive:
+        threads: 100
+        rate: 500
+        timeout: 20
+  
+  katana:
+    per_mode:
+      bugbounty:
+        depth: 3
+        concurrency: 10
+        delay: 100
+      authorized:
+        depth: 5
+        concurrency: 20
+        delay: 50
+      aggressive:
+        depth: 10
+        concurrency: 50
+        delay: 0
