@@ -1,0 +1,140 @@
+# GaleHunTUI Tool Registry
+# Defines external security tools and their installation methods
+
+version: "1.0"
+
+tools:
+  subfinder:
+    name: "Subfinder"
+    description: "Fast passive subdomain enumeration tool"
+    install_method: "github_release"
+    repo: "projectdiscovery/subfinder"
+    binary_name: "subfinder"
+    required: true
+    mode_required: null
+    asset_patterns: []
+    
+  dnsx:
+    name: "DNSX"
+    description: "Fast and multi-purpose DNS toolkit"
+    install_method: "github_release"
+    repo: "projectdiscovery/dnsx"
+    binary_name: "dnsx"
+    required: true
+    mode_required: null
+    asset_patterns: []
+    
+  httpx:
+    name: "HTTPX"
+    description: "Fast and multi-purpose HTTP toolkit"
+    install_method: "github_release"
+    repo: "projectdiscovery/httpx"
+    binary_name: "httpx"
+    required: true
+    mode_required: null
+    asset_patterns: []
+    
+  katana:
+    name: "Katana"
+    description: "Next-generation crawling and spidering framework"
+    install_method: "github_release"
+    repo: "projectdiscovery/katana"
+    binary_name: "katana"
+    required: true
+    mode_required: null
+    asset_patterns: []
+    
+  nuclei:
+    name: "Nuclei"
+    description: "Fast and customizable vulnerability scanner"
+    install_method: "github_release"
+    repo: "projectdiscovery/nuclei"
+    binary_name: "nuclei"
+    required: true
+    mode_required: null
+    asset_patterns: []
+    
+  gau:
+    name: "GAU"
+    description: "Fetch known URLs from AlienVault's OTX, Wayback Machine, and more"
+    install_method: "github_release"
+    repo: "lc/gau"
+    binary_name: "gau"
+    required: true
+    mode_required: null
+    asset_patterns: []
+    
+  ffuf:
+    name: "FFUF"
+    description: "Fast web fuzzer written in Go"
+    install_method: "github_release"
+    repo: "ffuf/ffuf"
+    binary_name: "ffuf"
+    required: false
+    mode_required: "authorized"
+    asset_patterns: []
+    
+  dalfox:
+    name: "Dalfox"
+    description: "Powerful open-source XSS scanner and parameter analyzer"
+    install_method: "github_release"
+    repo: "hahwul/dalfox"
+    binary_name: "dalfox"
+    required: false
+    mode_required: "bugbounty"
+    asset_patterns: []
+    
+  sqlmap:
+    name: "SQLMap"
+    description: "Automatic SQL injection and database takeover tool"
+    install_method: "git"
+    repo_url: "https://github.com/sqlmapproject/sqlmap.git"
+    branch: "master"
+    required: false
+    mode_required: "authorized"
+    executable: "sqlmap.py"
+    
+  hydra:
+    name: "Hydra"
+    description: "Parallelized login cracker which supports numerous protocols"
+    install_method: "github_release"
+    repo: "vanhauser-thc/thc-hydra"
+    binary_name: "hydra"
+    required: false
+    mode_required: "aggressive"
+    asset_patterns: []
+    notes: "May require manual compilation on some platforms"
+    
+  wfuzz:
+    name: "Wfuzz"
+    description: "Web application fuzzer"
+    install_method: "git"
+    repo_url: "https://github.com/xmendez/wfuzz.git"
+    branch: "master"
+    required: false
+    mode_required: "authorized"
+    executable: "wfuzz.py"
+
+platform_specific:
+  linux:
+    package_format: "tar.gz"
+    arch_mapping:
+      amd64: "amd64"
+      arm64: "arm64"
+      
+  darwin:
+    package_format: "tar.gz"
+    arch_mapping:
+      amd64: "amd64"
+      arm64: "arm64"
+      
+  windows:
+    package_format: "zip"
+    arch_mapping:
+      amd64: "amd64"
+      arm64: "arm64"
+
+metadata:
+  last_updated: "2026-02-03"
+  registry_version: "1.0"
+  compatible_with: "GaleHunTUI >= 0.1.0"
