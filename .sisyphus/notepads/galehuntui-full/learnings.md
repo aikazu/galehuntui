@@ -587,3 +587,60 @@ docker run --rm -i \
 - Retry logic for failed downloads
 - GPG signature verification for security-critical tools
 
+
+## NucleiAdapter Implementation (Task 7)
+
+### Implementation Summary
+Created `src/galehuntui/tools/adapters/nuclei.py` with full `NucleiAdapter` class implementation.
+
+### Key Features
+1. **Command Building**: Handles JSON output, silent mode, timeout, rate limiting
+2. **Input Flexibility**: Supports single URL, file input, or multiple URLs via stdin
+3. **Output Parsing**: Converts Nuclei JSON Lines to normalized `Finding` objects
+4. **Severity Mapping**: Maps Nuclei severity levels (critical/high/medium/low/info/unknown) to `Severity` enum
+5. **Confidence Determination**: 
+   - CONFIRMED: If extracted-results present or verified matcher
+   - FIRM: For CVE detections
+   - TENTATIVE: For generic detections
+6. **Streaming Support**: Async generator for real-time output streaming
+7. **Version Detection**: Parses `nuclei -version` output
+
+### Field Mappings
+- `template-id` → `Finding.type`
+- `info.name` → `Finding.title`
+- `info.description` → `Finding.description`
+- `info.severity` → `Finding.severity` (mapped)
+- `info.reference` → `Finding.references`
+- `matched-at` or `matched` → `Finding.url`
+- `host` → `Finding.host`
+- `timestamp` → `Finding.timestamp`
+
+### Evidence Handling
+- Evidence paths initialized as empty list
+- Will be populated by pipeline orchestrator with:
+  - Request/response data
+  - Screenshots
+  - Raw tool output
+
+### Reproduction Steps Extraction
+1. Navigation URL from `matched-at`
+2. Matcher information from `matcher-name`
+3. Extracted data samples (first 3 items)
+
+### Testing
+- Verified import works correctly
+- Tested `build_command()` with various configurations
+- Tested `parse_output()` with sample JSON Lines
+- Verified severity mapping for all levels
+- Confirmed confidence logic works as expected
+
+### Known Issues
+- Pyright reports type mismatch on `stream()` method due to async generator typing quirk
+- This is a false positive - async generators returning `AsyncIterator[str]` is correct
+- Added `# type: ignore[override]` to suppress the warning
+- Runtime functionality is unaffected
+
+### Files Modified
+- ✅ Created: `src/galehuntui/tools/adapters/nuclei.py`
+- ✅ Updated: `src/galehuntui/tools/adapters/__init__.py` (exports `NucleiAdapter`)
+
