@@ -829,3 +829,369 @@ This ensures tools are only used in appropriate engagement scenarios as defined 
 - Version detection tests with mocked subprocess
 - Mode enforcement tests (AUTHORIZED vs other modes)
 
+
+## Task 12: Database and ArtifactStorage Implementation (COMPLETED)
+
+**Files Created:**
+1. `src/galehuntui/storage/database.py` (513 lines)
+2. `src/galehuntui/storage/artifacts.py` (382 lines)
+
+### Database Class Implementation
+
+**Core Features:**
+- SQLite-based persistence with WAL (Write-Ahead Logging) mode for concurrency
+- Two main tables: `runs` and `findings`
+- JSON serialization for complex fields (lists, dicts)
+- Foreign key constraints with CASCADE delete
+- Indexed columns for query performance
+
+**Schema Details:**
+
+**Runs Table:**
+- Primary key: `id` (TEXT)
+- Metadata: `target`, `profile`, `engagement_mode`, `state`
+- Timestamps: `created_at`, `started_at`, `completed_at`
+- Progress: `total_steps`, `completed_steps`, `failed_steps`
+- Findings: `total_findings`, `findings_by_severity` (JSON)
+- Paths: `run_dir`, `artifacts_dir`, `evidence_dir`, `reports_dir`
+
+**Findings Table:**
+- Primary key: `id` (TEXT)
+- Foreign key: `run_id` → runs(id) ON DELETE CASCADE
+- Core: `type`, `severity`, `confidence`, `host`, `url`, `parameter`
+- Evidence: `evidence_paths` (JSON array), `tool`, `timestamp`
+- Details: `title`, `description`, `reproduction_steps` (JSON), `remediation`, `references` (JSON)
+
+**Indexes:**
+- `idx_findings_run_id` - Fast finding lookups by run
+- `idx_findings_severity` - Severity-based filtering
+- `idx_runs_state` - State-based run queries
+
+**Methods Implemented (12 total):**
+
+1. `__init__(db_path)` - Initialize with database file path
+2. `_get_connection()` - Get/create connection with WAL mode and row factory
+3. `init_db()` - Create schema with tables and indexes
+4. `save_run(run)` - Insert or update run metadata (UPSERT)
+5. `get_run(run_id)` - Retrieve run by ID with full deserialization
+6. `list_runs(limit, offset, state_filter)` - List runs with pagination and filtering
+7. `save_finding(finding)` - Insert or update finding (UPSERT)
+8. `get_findings_for_run(run_id, severity_filter)` - Get findings with custom severity ordering
+9. `delete_run(run_id)` - Delete run and cascade to findings
+10. `close()` - Close database connection
+11. `__enter__()` - Context manager support
+12. `__exit__()` - Context manager cleanup
+
+**Key Design Decisions:**
+
+**JSON Serialization:**
+- `findings_by_severity`: dict → JSON
+- `evidence_paths`: list → JSON array
+- `reproduction_steps`: list → JSON array
+- `references`: list → JSON array
+
+**WAL Mode Benefits:**
+- Improved concurrency (readers don't block writers)
+- Better performance for write-heavy workloads
+- Atomic commits
+- Enabled with: `PRAGMA journal_mode=WAL`
+
+**Foreign Key Enforcement:**
+- Enabled with: `PRAGMA foreign_keys=ON`
+- CASCADE delete ensures findings are removed with runs
+
+**Severity Ordering:**
+- Custom CASE statement for proper sorting
+- Order: CRITICAL → HIGH → MEDIUM → LOW → INFO
+- Secondary sort by timestamp DESC (newest first)
+
+**Row Factory:**
+- `sqlite3.Row` for dict-like column access
+- Cleaner field extraction: `row["column_name"]`
+
+**Connection Management:**
+- Lazy connection creation (only when needed)
+- `check_same_thread=False` for async compatibility
+- Context manager support for clean resource handling
+
+### ArtifactStorage Class Implementation
+
+**Core Features:**
+- File system organization by run_id
+- Separate directories for artifacts, evidence, and reports
+- Evidence categorization (screenshots, requests, responses)
+- Relative path tracking for Finding evidence_paths
+- Bulk cleanup and size calculation utilities
+
+**Directory Structure:**
+```
+base_dir/
+  {run_id}/
+    artifacts/
+      {tool_name}/
+        output.json
+    evidence/
+      screenshots/
+      requests/
+      responses/
+    reports/
+      report.html
+```
+
+**Methods Implemented (12 total):**
+
+1. `__init__(base_dir)` - Initialize with base directory path
+2. `init_run_directories(run_id)` - Create full directory structure
+   - Returns tuple: (run_dir, artifacts_dir, evidence_dir, reports_dir)
+   - Creates evidence subdirectories automatically
+
+3. `save_artifact(run_id, tool_name, content, filename)` - Save tool output
+   - Supports text (str) and binary (bytes) content
+   - Creates tool-specific subdirectory
+   - Returns absolute path to saved file
+
+4. `save_evidence(run_id, evidence_type, content, filename)` - Save evidence
+   - Validates evidence_type (screenshots/requests/responses)
+   - Returns relative path for Finding storage
+   - Supports text and binary content
+
+5. `get_artifact_path(run_id, tool_name, filename)` - Get artifact path
+   - Validates file exists
+   - Raises ArtifactNotFoundError if missing
+
+6. `get_evidence_path(run_id, relative_path)` - Convert relative to absolute
+   - Resolves paths stored in Finding objects
+   - Validates file exists
+
+7. `list_artifacts(run_id, tool_name)` - List artifacts
+   - Optional tool_name filter
+   - Returns sorted list of paths
+
+8. `copy_file_to_artifacts(source_path, run_id, tool_name, filename)` - Copy from temp
+   - Uses shutil.copy2 to preserve metadata
+   - Useful for moving tool outputs
+
+9. `delete_run_artifacts(run_id)` - Delete entire run directory
+   - Uses shutil.rmtree for recursive deletion
+   - Returns bool for success/not found
+
+10. `get_run_size(run_id)` - Calculate total size in bytes
+    - Recursive file size summation
+    - Returns 0 if run doesn't exist
+
+11. `cleanup_old_runs(keep_count, min_age_days)` - Cleanup utility
+    - Keeps N most recent runs
+    - Optional age-based filtering
+    - Returns list of deleted run IDs
+    - Sorts by mtime (modification time)
+
+**Key Design Decisions:**
+
+**Evidence Path Strategy:**
+- `save_evidence()` returns relative paths (e.g., "evidence/screenshots/finding_123.png")
+- Relative paths stored in Finding.evidence_paths
+- `get_evidence_path()` resolves to absolute paths for reading
+- Benefits: Database remains portable, run directories can be moved
+
+**Content Type Handling:**
+- Union type: `str | bytes` for flexibility
+- Text content: UTF-8 encoding
+- Binary content: Raw bytes (screenshots, binary data)
+- Type detection via isinstance()
+
+**Directory Creation:**
+- `parents=True, exist_ok=True` pattern throughout
+- Safe for concurrent/repeated calls
+- No errors if directories already exist
+
+**Evidence Type Validation:**
+- Valid types: {"screenshots", "requests", "responses"}
+- ValueError raised for invalid types
+- Prevents typos and maintains structure
+
+**Tool Organization:**
+- Each tool gets its own subdirectory under artifacts/
+- Prevents filename conflicts between tools
+- Easy to find specific tool outputs
+
+**Cleanup Strategy:**
+- Sort by modification time (newest first)
+- Keep N most recent (configurable)
+- Age-based deletion optional
+- Returns deleted run IDs for audit logging
+
+### Error Handling
+
+**Database Exceptions:**
+- `StorageError` - Wraps all sqlite3.Error exceptions
+- Provides context in error messages (run_id, operation)
+- Propagates ValueError and KeyError for deserialization failures
+
+**ArtifactStorage Exceptions:**
+- `StorageError` - Wraps OSError for file operations
+- `ArtifactNotFoundError` - Specific error for missing artifacts
+- `ValueError` - Invalid evidence_type
+- `FileNotFoundError` - Source file missing in copy operations
+
+**Exception Context:**
+- All exceptions include run_id and relevant identifiers
+- Original exception chained with `from e`
+- Descriptive messages for debugging
+
+### Type Safety
+
+**All methods fully typed:**
+- Parameter types specified
+- Return types annotated
+- Optional types for nullable values
+- Union types for str | bytes content
+- Tuple return types for multi-value returns
+
+**Model Integration:**
+- Uses Finding, RunMetadata from core.models
+- Uses Severity, Confidence, RunState enums
+- Uses EngagementMode from constants
+- Proper enum value serialization (`.value`)
+
+### Path Management
+
+**Exclusive pathlib.Path usage:**
+- No os.path imports
+- Path concatenation with `/` operator
+- `.mkdir()`, `.exists()`, `.iterdir()`, `.rglob()`
+- `.relative_to()` for relative path calculation
+- `.stat()` for file metadata
+- `.read_bytes()`, `.write_bytes()`, `.read_text()`, `.write_text()`
+
+**Path Conversions:**
+- str(path) for database storage
+- Path(str) for database retrieval
+- Maintains Path objects internally
+
+### Testing Considerations
+
+**Database Testing:**
+- Use in-memory database: `:memory:`
+- Test UPSERT behavior (insert + update)
+- Test CASCADE delete (findings removed with run)
+- Test severity ordering in queries
+- Test JSON serialization round-trip
+- Test context manager
+
+**ArtifactStorage Testing:**
+- Use tmpdir fixture
+- Test directory creation
+- Test text vs binary content
+- Test relative path calculation
+- Test cleanup logic with mock timestamps
+- Test error conditions (missing files, invalid types)
+
+### Integration with Pipeline
+
+**Database Usage:**
+```python
+db = Database(Path.home() / ".local/share/galehuntui/galehuntui.db")
+db.init_db()
+
+# Save run
+run = RunMetadata(id=uuid4().hex, ...)
+db.save_run(run)
+
+# Save findings
+for finding in findings:
+    db.save_finding(finding)
+
+# Query
+findings = db.get_findings_for_run(run.id, severity_filter=Severity.CRITICAL)
+```
+
+**ArtifactStorage Usage:**
+```python
+storage = ArtifactStorage(Path.home() / ".local/share/galehuntui/runs")
+
+# Initialize run
+run_dir, artifacts_dir, evidence_dir, reports_dir = storage.init_run_directories(run_id)
+
+# Save tool output
+artifact_path = storage.save_artifact(
+    run_id=run_id,
+    tool_name="nuclei",
+    content=json_output,
+    filename="output.json"
+)
+
+# Save evidence (returns relative path for Finding)
+evidence_rel_path = storage.save_evidence(
+    run_id=run_id,
+    evidence_type="requests",
+    content=http_request,
+    filename=f"request_{finding_id}.txt"
+)
+
+# Store in Finding
+finding.evidence_paths.append(str(evidence_rel_path))
+
+# Later: Retrieve evidence
+abs_path = storage.get_evidence_path(run_id, evidence_rel_path)
+content = abs_path.read_text()
+```
+
+### LSP Validation Results
+
+- ✅ database.py: No diagnostics
+- ✅ artifacts.py: No diagnostics
+- ✅ All imports resolve correctly
+- ✅ Type hints validated
+- ✅ No errors or warnings
+
+### Compliance with Requirements
+
+**Database:**
+- ✅ Uses sqlite3 standard library (no ORM)
+- ✅ WAL mode enabled for concurrency
+- ✅ JSON serialization for complex fields
+- ✅ Uses pathlib for all paths
+- ✅ Proper exception handling
+- ✅ Tables: runs, findings
+- ✅ Methods: init_db(), save_run(), save_finding(), get_run()
+
+**ArtifactStorage:**
+- ✅ Uses pathlib for file operations
+- ✅ Methods: save_artifact(), save_evidence(), get_artifact_path()
+- ✅ Uses run_id for directory structure
+- ✅ Supports text and binary content
+- ✅ Relative path tracking for evidence
+
+### Files Created
+
+- ✅ `src/galehuntui/storage/database.py` (513 lines)
+- ✅ `src/galehuntui/storage/artifacts.py` (382 lines)
+
+### Dependencies
+
+**Imports Used:**
+- `sqlite3` - Standard library
+- `json` - Standard library
+- `pathlib.Path` - Standard library
+- `datetime` - Standard library
+- `shutil` - Standard library (for file operations)
+- `typing` - Standard library
+
+**No External Dependencies Required**
+
+### Future Enhancements
+
+**Database:**
+- Migration system for schema changes
+- Connection pooling for high concurrency
+- Full-text search on finding descriptions
+- Aggregation queries for statistics
+- Backup/restore utilities
+
+**ArtifactStorage:**
+- Compression for old runs (tar.gz)
+- Storage quota enforcement
+- Deduplication for identical evidence files
+- Cloud storage backend option
+- Incremental backup support
+
