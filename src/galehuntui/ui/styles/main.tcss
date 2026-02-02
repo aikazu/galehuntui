@@ -204,3 +204,27 @@ ScrollBar > .scrollbar--thumb {
 #findings-table {
     height: 100%;
 }
+
+/* Tools Manager Screen */
+.tools-container {
+    padding: 1 2;
+    layout: vertical;
+}
+
+.tools-section {
+    height: 1fr;
+    margin-bottom: 1;
+}
+
+#core_tools_table, #optional_tools_table {
+    border: solid $border;
+    background: $surface;
+}
+
+.controls-bar Button {
+    margin-left: 1;
+}
+
+.-disabled {
+    opacity: 50%;
+}
