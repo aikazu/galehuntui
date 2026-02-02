@@ -644,3 +644,188 @@ Created `src/galehuntui/tools/adapters/nuclei.py` with full `NucleiAdapter` clas
 - ✅ Created: `src/galehuntui/tools/adapters/nuclei.py`
 - ✅ Updated: `src/galehuntui/tools/adapters/__init__.py` (exports `NucleiAdapter`)
 
+
+## SqlmapAdapter, HydraAdapter, and WfuzzAdapter Implementation (Task 11)
+
+### Implementation Summary
+Created three advanced tool adapters for security testing tools that require authorization:
+- `src/galehuntui/tools/adapters/sqlmap.py` - SQL injection testing
+- `src/galehuntui/tools/adapters/hydra.py` - Authentication brute forcing
+- `src/galehuntui/tools/adapters/wfuzz.py` - Web application fuzzing
+
+### SqlmapAdapter Details
+
+**Attributes:**
+- `name`: "sqlmap"
+- `required`: False
+- `mode_required`: "AUTHORIZED" - Requires authorized engagement mode
+
+**Key Features:**
+1. **Command Building**: 
+   - Batch mode (--batch) for non-interactive operation
+   - Random User-Agent (--random-agent)
+   - Output directory management
+   - Thread control based on rate_limit
+   - Supports single URL or bulk file input (-m flag)
+
+2. **Output Parsing**:
+   - Text-based output parsing (SQLMap doesn't output clean JSON)
+   - Detects vulnerability markers: "vulnerable", "injectable"
+   - Extracts URL, parameter, and injection type from output
+   - Creates findings for each detected vulnerability
+
+3. **Injection Type Detection**:
+   - `sqli-time-blind`: Time-based blind injection
+   - `sqli-boolean-blind`: Boolean-based blind injection
+   - `sqli-error`: Error-based injection (CONFIRMED confidence)
+   - `sqli-union`: Union query injection (CRITICAL severity, CONFIRMED)
+
+4. **Severity/Confidence Assignment**:
+   - Default: HIGH severity, FIRM confidence
+   - Error-based: HIGH severity, CONFIRMED confidence
+   - Union-based: CRITICAL severity, CONFIRMED confidence
+
+5. **Version Detection**: Parses `sqlmap --version` output format "sqlmap/1.7.x"
+
+### HydraAdapter Details
+
+**Attributes:**
+- `name`: "hydra"
+- `required`: False
+- `mode_required`: "AUTHORIZED" - Requires authorized engagement mode
+
+**Key Features:**
+1. **Command Building**:
+   - Verbose mode (-V) for detailed output
+   - Connection timeout control (--conn-delay, --req-delay)
+   - Parallel task control (-t, capped at 64)
+   - Supports single target or multi-target file (-M flag)
+   - Custom args support for wordlists (-L, -P, -l, -p)
+
+2. **Output Parsing**:
+   - Parses successful authentication lines
+   - Format: `[PORT][PROTOCOL] host: HOST   login: USER   password: PASS`
+   - Extracts service, host, username, password
+   - Creates findings for weak/default credentials
+
+3. **Finding Creation**:
+   - Type: "weak-credentials"
+   - Severity: HIGH
+   - Confidence: CONFIRMED (successful auth is confirmed)
+   - Password stored in evidence only (not in description)
+
+4. **Security Considerations**:
+   - Passwords NOT included in finding descriptions
+   - Evidence paths to be populated with credential files
+   - Remediation focuses on password policies and MFA
+
+5. **Version Detection**: Parses help output (-h) to extract version "Hydra v9.5"
+
+### WfuzzAdapter Details
+
+**Attributes:**
+- `name`: "wfuzz"
+- `required`: False
+- `mode_required`: None - Available in all engagement modes
+
+**Key Features:**
+1. **Command Building**:
+   - JSON output format (-o json)
+   - Connection delay/timeout control
+   - Thread control (-t, capped at 50)
+   - Default hide 404s (--hc 404)
+   - Expects URL with FUZZ keyword placeholder
+
+2. **Output Parsing**:
+   - Supports both JSON array and JSON Lines format
+   - Parses response code, size metrics (lines, words, chars)
+   - Extracts payload used for fuzzing
+
+3. **Finding Classification by Response Code**:
+   - 200: LOW severity, FIRM confidence, "discovered-resource"
+   - 301/302/307/308: INFO severity, "discovered-redirect"
+   - 403: LOW severity, FIRM confidence, "discovered-forbidden"
+   - 401: MEDIUM severity, FIRM confidence, "discovered-protected"
+   - 5xx: MEDIUM severity, CONFIRMED confidence, "server-error"
+
+4. **Response Analysis**:
+   - Includes response size metrics (chars, lines, words)
+   - Payload tracking for reproduction
+   - URL reconstruction from fuzzing results
+
+5. **Version Detection**: Parses `wfuzz --version` output "Wfuzz 3.1.0"
+
+### Common Implementation Patterns
+
+**Error Handling:**
+- All three use ToolNotFoundError, ToolTimeoutError, ToolExecutionError
+- Proper cleanup on timeout (process.kill())
+- Graceful handling of malformed output
+- Re-raise ToolTimeoutError after catching
+
+**Async Execution:**
+- asyncio.create_subprocess_exec for all tool execution
+- asyncio.wait_for for timeout enforcement
+- Proper stdout/stderr piping
+- Stream methods yield lines in real-time
+
+**Path Management:**
+- pathlib.Path for all file operations
+- Temp output files with UUID prefix for uniqueness
+- Pattern: `/tmp/{tool}_output_{uuid4().hex[:8]}.{ext}`
+
+**Type Safety:**
+- All methods properly typed with return annotations
+- Optional[Finding] for conversion methods that may fail
+- AsyncIterator[str] for stream methods with type: ignore comment
+- Consistent use of dict, list, str types
+
+**Reproduction Steps:**
+- All findings include actionable reproduction steps
+- Target information (URL, host, service)
+- Detection details (payload, parameter, response)
+- Manual verification guidance
+
+**Remediation Guidance:**
+- SqlmapAdapter: Parameterized queries, input validation
+- HydraAdapter: Password policies, account lockout, MFA
+- WfuzzAdapter: Access controls, security misconfiguration review
+
+**OWASP References:**
+- SqlmapAdapter: SQL Injection, Prevention Cheat Sheet
+- HydraAdapter: Broken Authentication, Authentication Cheat Sheet
+- WfuzzAdapter: Security Misconfiguration
+
+### Mode Enforcement
+
+**AUTHORIZED Mode Required:**
+- SqlmapAdapter: SQL injection testing is invasive
+- HydraAdapter: Brute forcing requires explicit authorization
+
+**All Modes Allowed:**
+- WfuzzAdapter: Resource discovery is generally safe
+
+This ensures tools are only used in appropriate engagement scenarios as defined in AGENTS.md.
+
+### Files Modified
+- ✅ Created: `src/galehuntui/tools/adapters/sqlmap.py` (393 lines)
+- ✅ Created: `src/galehuntui/tools/adapters/hydra.py` (364 lines)
+- ✅ Created: `src/galehuntui/tools/adapters/wfuzz.py` (423 lines)
+- ✅ Updated: `src/galehuntui/tools/adapters/__init__.py` (added 3 exports)
+
+### LSP Validation
+- ✅ No errors in sqlmap.py
+- ✅ No errors in hydra.py
+- ✅ No errors in wfuzz.py
+- ✅ No errors in __init__.py
+- ✅ All imports resolve correctly
+- ✅ Type hints validated
+
+### Testing Strategy (Future)
+- Unit tests for parse_output() with sample tool outputs
+- Command building tests with various configs
+- Mock subprocess execution for run() tests
+- Stream functionality tests with async generators
+- Version detection tests with mocked subprocess
+- Mode enforcement tests (AUTHORIZED vs other modes)
+

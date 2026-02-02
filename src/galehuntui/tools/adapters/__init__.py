@@ -9,9 +9,12 @@ from galehuntui.tools.adapters.dnsx import DnsxAdapter
 from galehuntui.tools.adapters.ffuf import FfufAdapter
 from galehuntui.tools.adapters.gau import GauAdapter
 from galehuntui.tools.adapters.httpx import HttpxAdapter
+from galehuntui.tools.adapters.hydra import HydraAdapter
 from galehuntui.tools.adapters.katana import KatanaAdapter
 from galehuntui.tools.adapters.nuclei import NucleiAdapter
+from galehuntui.tools.adapters.sqlmap import SqlmapAdapter
 from galehuntui.tools.adapters.subfinder import SubfinderAdapter
+from galehuntui.tools.adapters.wfuzz import WfuzzAdapter
 
 __all__ = [
     "DalfoxAdapter",
@@ -19,7 +22,10 @@ __all__ = [
     "FfufAdapter",
     "GauAdapter",
     "HttpxAdapter",
+    "HydraAdapter",
     "KatanaAdapter",
     "NucleiAdapter",
+    "SqlmapAdapter",
     "SubfinderAdapter",
+    "WfuzzAdapter",
 ]
