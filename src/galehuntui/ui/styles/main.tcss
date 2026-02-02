@@ -1,0 +1,151 @@
+/* Global Variables & Theme */
+$surface: #0f111a;
+$surface-light: #1a1c29;
+$surface-lighter: #26293b;
+$primary: #00f2ea;
+$secondary: #ff0055;
+$accent: #7000ff;
+$success: #00ff9d;
+$warning: #ffb700;
+$error: #ff3333;
+$text: #e2e8f0;
+$text-muted: #64748b;
+$border: #2e344d;
+
+/* Base Screen */
+Screen {
+    background: $surface;
+    color: $text;
+}
+
+/* Header */
+Header {
+    background: $surface-light;
+    color: $primary;
+    height: 3;
+    content-align: center middle;
+    border-bottom: solid $border;
+}
+
+HeaderTitle {
+    text-style: bold;
+}
+
+HeaderIcon {
+    color: $secondary;
+}
+
+/* Footer */
+Footer {
+    background: $surface-light;
+    color: $text-muted;
+    border-top: solid $border;
+}
+
+Footer > .footer-key {
+    color: $primary;
+    text-style: bold;
+}
+
+Footer > .footer-key.-active {
+    color: $secondary;
+}
+
+/* Buttons */
+Button {
+    background: $surface-lighter;
+    color: $primary;
+    border: none;
+    height: 3;
+    min-width: 16;
+    content-align: center middle;
+    text-style: bold;
+}
+
+Button:hover {
+    background: $surface-lighter;
+    color: $surface;
+    tint: $primary 80%;
+}
+
+Button:focus {
+    border: wide $primary;
+}
+
+Button.primary {
+    background: $primary;
+    color: $surface;
+}
+
+Button.primary:hover {
+    background: $primary;
+    tint: $surface 20%;
+}
+
+Button.error {
+    background: transparent;
+    color: $error;
+    border: solid $error;
+}
+
+Button.error:hover {
+    background: $error;
+    color: white;
+}
+
+/* Inputs */
+Input {
+    background: $surface-light;
+    border: solid $border;
+    color: $text;
+    padding: 0 1;
+}
+
+Input:focus {
+    border: solid $primary;
+}
+
+Input > .input--placeholder {
+    color: $text-muted;
+}
+
+/* DataTable */
+DataTable {
+    background: $surface;
+    border: solid $border;
+}
+
+DataTable > .datatable--header {
+    background: $surface-light;
+    color: $primary;
+    text-style: bold;
+}
+
+DataTable > .datatable--cursor {
+    background: $surface-lighter;
+    color: $text;
+}
+
+DataTable > .datatable--hover {
+    background: $surface-lighter; 20%;
+}
+
+/* Scrollbar */
+ScrollBar {
+    background: $surface;
+    width: 1;
+}
+
+ScrollBar > .scrollbar--thumb {
+    background: $border;
+}
+
+/* Typography Helpers */
+.text-primary { color: $primary; }
+.text-secondary { color: $secondary; }
+.text-success { color: $success; }
+.text-warning { color: $warning; }
+.text-error { color: $error; }
+.text-muted { color: $text-muted; }
+
+.bold { text-style: bold; }
