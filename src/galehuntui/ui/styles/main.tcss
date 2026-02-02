@@ -149,3 +149,58 @@ ScrollBar > .scrollbar--thumb {
 .text-muted { color: $text-muted; }
 
 .bold { text-style: bold; }
+
+/* Run Detail Screen */
+.run-detail-container {
+    padding: 1 2;
+}
+
+.run-info-bar {
+    height: 3;
+    margin-bottom: 1;
+    align: center middle;
+    background: $surface-light;
+    border: solid $border;
+}
+
+.info-label {
+    padding: 0 2;
+    color: $text-muted;
+}
+
+.status-badge {
+    background: $surface-lighter;
+    color: $text;
+    padding: 0 2;
+    text-style: bold;
+}
+
+.status-badge.running {
+    color: $primary;
+}
+
+.section-title {
+    margin-top: 1;
+    color: $primary;
+    text-style: bold;
+}
+
+.pipeline-progress {
+    margin-bottom: 2;
+}
+
+.controls-bar {
+    height: 3;
+    margin-top: 1;
+    align: right middle;
+}
+
+#run-log {
+    height: 100%;
+    border: solid $border;
+    background: $surface-light;
+}
+
+#findings-table {
+    height: 100%;
+}
