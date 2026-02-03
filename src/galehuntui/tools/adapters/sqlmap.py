@@ -34,11 +34,36 @@ class SqlmapAdapter(ToolAdapterBase):
         name: Tool identifier ("sqlmap")
         required: False - Optional for SQL injection testing
         mode_required: "AUTHORIZED" - Requires authorized engagement mode
+    
+    Note:
+        SQLMap is a Python script, not a compiled binary. It's installed via
+        git clone to tools/scripts/sqlmap/ rather than tools/bin/.
     """
     
     name = "sqlmap"
     required = False
     mode_required = "AUTHORIZED"
+    
+    def __init__(self, bin_path: Path):
+        """Initialize SQLMap adapter.
+        
+        Args:
+            bin_path: Path to tools/bin directory. SQLMap is looked up in
+                     the sibling scripts/sqlmap/ directory.
+        """
+        super().__init__(bin_path)
+        # SQLMap is a Python script in tools/scripts/sqlmap/sqlmap.py
+        # bin_path is tools/bin, so we navigate to tools/scripts/sqlmap
+        scripts_dir = bin_path.parent / "scripts" / "sqlmap"
+        self._tool_binary = scripts_dir / "sqlmap.py"
+    
+    def _get_tool_path(self) -> Path:
+        """Get path to sqlmap.py script.
+        
+        Returns:
+            Path to sqlmap.py
+        """
+        return self._tool_binary
     
     def build_command(
         self,
@@ -55,6 +80,7 @@ class SqlmapAdapter(ToolAdapterBase):
             Complete command arguments for SQLMap execution
         """
         cmd = [
+            "python3",
             str(self._get_tool_path()),
             "--batch",           # Never ask for user input
             "--random-agent",    # Use random User-Agent
@@ -346,7 +372,7 @@ class SqlmapAdapter(ToolAdapterBase):
         
         try:
             result = subprocess.run(
-                [str(tool_path), "--version"],
+                ["python3", str(tool_path), "--version"],
                 capture_output=True,
                 text=True,
                 timeout=5,
