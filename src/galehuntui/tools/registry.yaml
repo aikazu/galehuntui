@@ -1,0 +1,86 @@
+# Tool Registry for GaleHunTUI
+# Defines all supported security tools and their installation methods
+
+tools:
+  subfinder:
+    install_method: "github_release"
+    repo: "projectdiscovery/subfinder"
+    binary_name: "subfinder"
+    required: true
+    description: "Fast passive subdomain enumeration tool"
+    asset_patterns: []
+
+  dnsx:
+    install_method: "github_release"
+    repo: "projectdiscovery/dnsx"
+    binary_name: "dnsx"
+    required: true
+    description: "Fast and multi-purpose DNS toolkit"
+    asset_patterns: []
+
+  httpx:
+    install_method: "github_release"
+    repo: "projectdiscovery/httpx"
+    binary_name: "httpx"
+    required: true
+    description: "Fast HTTP probing tool"
+    asset_patterns: []
+
+  katana:
+    install_method: "github_release"
+    repo: "projectdiscovery/katana"
+    binary_name: "katana"
+    required: true
+    description: "Next-generation crawling and spidering framework"
+    asset_patterns: []
+
+  gau:
+    install_method: "github_release"
+    repo: "lc/gau"
+    binary_name: "gau"
+    required: true
+    description: "Fetch known URLs from AlienVault, Wayback Machine, and Common Crawl"
+    asset_patterns: []
+
+  nuclei:
+    install_method: "github_release"
+    repo: "projectdiscovery/nuclei"
+    binary_name: "nuclei"
+    required: true
+    description: "Fast and customizable vulnerability scanner"
+    asset_patterns: []
+
+  dalfox:
+    install_method: "github_release"
+    repo: "hahwul/dalfox"
+    binary_name: "dalfox"
+    required: false
+    description: "Parameter analysis and XSS scanning tool"
+    asset_patterns: []
+
+  ffuf:
+    install_method: "github_release"
+    repo: "ffuf/ffuf"
+    binary_name: "ffuf"
+    required: false
+    description: "Fast web fuzzer"
+    asset_patterns: []
+
+  sqlmap:
+    install_method: "git"
+    repo_url: "https://github.com/sqlmapproject/sqlmap.git"
+    branch: "master"
+    required: false
+    description: "Automatic SQL injection and database takeover tool"
+
+  hydra:
+    install_method: "system"
+    package_name: "hydra"
+    required: false
+    description: "Network logon cracker"
+
+  wfuzz:
+    install_method: "pip"
+    package_name: "wfuzz"
+    required: false
+    description: "Web application fuzzer"

@@ -27,7 +27,8 @@ class ToolInstaller:
         self.tools_dir = tools_dir
         self.bin_dir = tools_dir / "bin"
         self.scripts_dir = tools_dir / "scripts"
-        self.registry_path = tools_dir / "registry.yaml"
+        # Registry is shipped with the package, not in tools_dir
+        self.registry_path = Path(__file__).parent / "registry.yaml"
         self.versions_path = tools_dir / "versions.json"
         self.checksums_path = tools_dir / "checksums.json"
         
