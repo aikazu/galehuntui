@@ -1,10 +1,10 @@
-from typing import Type
+from pathlib import Path
+from typing import Any, Optional, Type
 
-from textual.app import App, CSSPathType
+from textual.app import App
 from textual.driver import Driver
 from textual.screen import Screen
 
-# Import screens
 from galehuntui.ui.screens.home import HomeScreen
 from galehuntui.ui.screens.new_run import NewRunScreen
 from galehuntui.ui.screens.run_detail import RunDetailScreen
@@ -17,24 +17,18 @@ from galehuntui.ui.screens.finding_detail import FindingDetailScreen
 from galehuntui.ui.screens.help import HelpScreen
 from galehuntui.ui.screens.setup import SetupWizardScreen
 
-# Core components (placeholders for initialization)
-from galehuntui.core.config import Config
+from galehuntui.core.config import get_data_dir
 from galehuntui.storage.database import Database
 
+
 class GaleHunTUIApp(App):
-    """
-    GaleHunTUI - Terminal-based Automated Web Pentesting Application
-    """
 
     CSS_PATH = "styles/main.tcss"
 
     BINDINGS = [
-        # Global bindings
         ("q", "quit", "Quit"),
         ("d", "toggle_dark", "Toggle Dark Mode"),
         ("question_mark", "push_screen('help')", "Help"),
-        
-        # Navigation
         ("ctrl+n", "push_screen('new_run')", "New Run"),
         ("ctrl+t", "push_screen('tools_manager')", "Tools"),
         ("ctrl+s", "push_screen('settings')", "Settings"),
@@ -57,29 +51,28 @@ class GaleHunTUIApp(App):
     def __init__(
         self,
         driver_class: Type[Driver] | None = None,
-        css_path: CSSPathType | None = None,
+        css_path: str | None = None,
         watch_css: bool = False,
+        config_path: Optional[Path] = None,
     ):
         super().__init__(driver_class, css_path, watch_css)
+        self.config_path = config_path
         self.db: Database | None = None
-        self.config_manager: Config | None = None
+        self.current_run_id: Optional[str] = None
 
     def on_mount(self) -> None:
-        """Initialize application state and push the home screen."""
         self.title = "GaleHunTUI"
-        
-        # Initialize Core Systems
-        # Note: In a real scenario, we might want to do this async or with a splash screen
-        # self._init_database()
-        
-        # Push the home screen
+        self._init_database()
         self.push_screen("home")
 
     def _init_database(self) -> None:
-        """Initialize the database connection."""
-        # self.db = Database()
-        # self.db.connect()
-        pass
+        try:
+            data_dir = get_data_dir()
+            db_path = data_dir / "galehuntui.db"
+            self.db = Database(db_path)
+            self.db.init_db()
+        except Exception:
+            self.db = None
 
 if __name__ == "__main__":
     app = GaleHunTUIApp()

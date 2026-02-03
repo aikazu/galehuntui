@@ -1,5 +1,9 @@
 from pathlib import Path
 from typing import List, Tuple
+from uuid import uuid4
+from datetime import datetime
+import asyncio
+import importlib
 
 from textual.screen import Screen
 from textual.containers import Container, Vertical, Horizontal
@@ -16,12 +20,16 @@ from textual.widgets import (
     RadioSet,
     RadioButton,
 )
-from textual import on
+from textual import on, work
 from textual.app import ComposeResult
 
-from galehuntui.core.constants import EngagementMode
-from galehuntui.core.config import load_profile_config, get_config_dir
+from galehuntui.core.constants import EngagementMode, RunState
+from galehuntui.core.config import load_profile_config, get_config_dir, load_scope_config
+from galehuntui.core.models import RunMetadata, ScopeConfig, RunConfig
 from galehuntui.core.exceptions import ConfigError
+from galehuntui.storage.database import Database
+from galehuntui.orchestrator.pipeline import PipelineOrchestrator
+from galehuntui.ui.screens.run_detail import RunDetailScreen
 
 class NewRunScreen(Screen):
     """Screen for configuring and starting a new scan run."""
@@ -204,11 +212,120 @@ class NewRunScreen(Screen):
             self.notify("Please select a scope configuration.", severity="error")
             return
 
-        # TODO: Here we would trigger the actual run creation via Orchestrator
-        # For now, just notify and simulate success
+        # Generate Run ID
+        run_id = f"run-{uuid4().hex[:12]}"
         
-        self.notify(f"Starting run for {target}...", severity="information")
-        self.app.pop_screen()
+        # Notify user
+        self.notify(f"Starting run {run_id} for {target}...", severity="information")
         
-        # Simulate switching to run details
-        # self.app.push_screen("run_detail", run_id="new-run-id")
+        # Start background execution
+        _worker = self._execute_run(run_id, target, profile, mode_value, scope_file)
+        
+        # Instantiate and push RunDetailScreen
+        # We manually set the run_id on the screen instance so it can use it (if updated)
+        run_detail_screen = RunDetailScreen()
+        run_detail_screen.run_id = run_id  # Monkey-patch/set attribute for future use
+        
+        # Close this screen and push run detail
+        # We use call_after_refresh to ensure smooth transition
+        def navigate():
+            self.app.pop_screen()
+            self.app.push_screen(run_detail_screen)
+            
+        self.call_after_refresh(navigate)
+
+    @work(exclusive=True)
+    async def _execute_run(self, run_id: str, target: str, profile_name: str, mode_value: str, scope_file: str) -> None:
+        """Execute the pipeline in the background."""
+        try:
+            # 1. Setup paths
+            data_dir = Path.home() / ".local" / "share" / "galehuntui"
+            db_path = data_dir / "galehuntui.db"
+            run_dir = data_dir / "runs" / run_id
+            
+            # Create directories
+            for subdir in ["artifacts", "evidence", "reports"]:
+                (run_dir / subdir).mkdir(parents=True, exist_ok=True)
+            
+            # 2. Initialize Database
+            db = Database(db_path)
+            db.init_db()
+            
+            # 3. Load Configurations
+            scope_config = load_scope_config(scope_file)
+            
+            profiles = load_profile_config()
+            if profile_name not in profiles:
+                raise ValueError(f"Profile {profile_name} not found")
+            scan_profile = profiles[profile_name]
+            
+            engagement_mode = EngagementMode(mode_value)
+            
+            # 4. Create RunMetadata
+            now = datetime.now()
+            run_metadata = RunMetadata(
+                id=run_id,
+                target=target,
+                profile=profile_name,
+                engagement_mode=engagement_mode,
+                state=RunState.PENDING,
+                created_at=now,
+                started_at=now,
+                updated_at=now,
+                run_dir=run_dir,
+                artifacts_dir=run_dir / "artifacts",
+                evidence_dir=run_dir / "evidence",
+                reports_dir=run_dir / "reports",
+                scope_config=scope_config,
+            )
+            
+            # Save initial state
+            db.save_run(run_metadata)
+            
+            # 5. Initialize Adapters (Dynamically to match CLI pattern)
+            tools_dir = Path.cwd() / "tools"
+            
+            adapters = {}
+            adapter_modules = {
+                "subfinder": "galehuntui.tools.adapters.subfinder",
+                "dnsx": "galehuntui.tools.adapters.dnsx",
+                "httpx": "galehuntui.tools.adapters.httpx",
+                "katana": "galehuntui.tools.adapters.katana",
+                "gau": "galehuntui.tools.adapters.gau",
+                "nuclei": "galehuntui.tools.adapters.nuclei",
+                "dalfox": "galehuntui.tools.adapters.dalfox",
+                "ffuf": "galehuntui.tools.adapters.ffuf",
+                "sqlmap": "galehuntui.tools.adapters.sqlmap",
+            }
+            
+            # Load adapters for steps in profile
+            for tool_name in scan_profile.steps:
+                if tool_name in adapter_modules:
+                    try:
+                        mod = importlib.import_module(adapter_modules[tool_name])
+                        adapter_class = getattr(mod, f"{tool_name.capitalize()}Adapter", None)
+                        if adapter_class:
+                            # Construct bin path
+                            bin_path = tools_dir / "bin" / tool_name
+                            adapters[tool_name] = adapter_class(bin_path)
+                    except Exception as e:
+                        # Continue with warning
+                        self.app.notify(f"Warning: Failed to load {tool_name}: {e}", severity="warning")
+
+            # 6. Initialize Orchestrator
+            orchestrator = PipelineOrchestrator.create_standard_pipeline(
+                adapters=adapters,
+                target=target,
+                profile=scan_profile,
+                scope=scope_config,
+                engagement_mode=engagement_mode,
+            )
+            orchestrator.db = db
+            
+            # 7. Run Pipeline
+            _state = await orchestrator.run(target)
+            
+            self.app.notify(f"Run {run_id} completed successfully!", severity="information")
+            
+        except Exception as e:
+            self.app.notify(f"Run {run_id} failed: {e}", severity="error")

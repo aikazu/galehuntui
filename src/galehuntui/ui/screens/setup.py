@@ -1,4 +1,8 @@
 import asyncio
+import sys
+import shutil
+import os
+from pathlib import Path
 from textual.app import ComposeResult
 from textual.screen import Screen
 from textual.widgets import (
@@ -14,6 +18,9 @@ from textual.widgets import (
 from textual.containers import Container, Vertical, Horizontal, VerticalScroll
 from textual.reactive import reactive
 from textual.binding import Binding
+
+from galehuntui.tools.installer import ToolInstaller
+from galehuntui.core.config import get_data_dir, get_config_dir
 
 class WizardStep(Container):
     """Base class for wizard steps."""
@@ -43,8 +50,8 @@ class SystemCheckStep(WizardStep):
             Label("Verifying environment requirements...", classes="wizard-subtitle"),
             Container(
                 Label("Checking Python Version...", id="check_python"),
+                Label("Checking Git...", id="check_git"),
                 Label("Checking Docker...", id="check_docker"),
-                Label("Checking Internet Connection...", id="check_net"),
                 Label("Checking Write Permissions...", id="check_perms"),
                 id="checks_container"
             ),
@@ -56,8 +63,8 @@ class ToolInstallStep(WizardStep):
     def compose(self) -> ComposeResult:
         yield Vertical(
             Label("Tool Installation", classes="wizard-title"),
-            Label("Installing core tools (subfinder, nuclei, httpx...)", classes="wizard-subtitle"),
-            ProgressBar(total=100, show_eta=False, id="install_progress"),
+            Label("Installing core tools from registry...", classes="wizard-subtitle"),
+            ProgressBar(total=100, show_eta=True, id="install_progress"),
             Label("Waiting to start...", id="install_status"),
             Button("Next", variant="primary", id="next_step", disabled=True),
             classes="step-content"
@@ -182,44 +189,114 @@ class SetupWizardScreen(Screen):
         self.app.exit()
 
     def run_checks(self) -> None:
-        """Simulate system checks."""
+        """Perform real system checks."""
         async def _check():
-            checks = {
-                "check_python": "Python 3.11+ ... OK",
-                "check_docker": "Docker ... OK",
-                "check_net": "Internet ... OK",
-                "check_perms": "Permissions ... OK"
-            }
+            # Check Python
+            py_ver = sys.version_info
+            py_ok = py_ver >= (3, 11)
+            py_lbl = self.query_one("#check_python", Label)
+            if py_ok:
+                py_lbl.update(f"✅ Python {py_ver.major}.{py_ver.minor} detected")
+                py_lbl.styles.color = "green"
+            else:
+                py_lbl.update(f"❌ Python {py_ver.major}.{py_ver.minor} (Need 3.11+)")
+                py_lbl.styles.color = "red"
+            await asyncio.sleep(0.1)
             
-            for check_id, result in checks.items():
-                await asyncio.sleep(0.5)
-                lbl = self.query_one(f"#{check_id}", Label)
-                lbl.update(f"✅ {result}")
-                lbl.styles.color = "green"
+            # Check Git
+            git_path = shutil.which("git")
+            git_lbl = self.query_one("#check_git", Label)
+            git_ok = bool(git_path)
+            if git_ok:
+                git_lbl.update(f"✅ Git detected ({git_path})")
+                git_lbl.styles.color = "green"
+            else:
+                git_lbl.update("❌ Git not found")
+                git_lbl.styles.color = "red"
+            await asyncio.sleep(0.1)
+
+            # Check Docker
+            docker_path = shutil.which("docker")
+            docker_lbl = self.query_one("#check_docker", Label)
+            if docker_path:
+                docker_lbl.update("✅ Docker available")
+                docker_lbl.styles.color = "green"
+            else:
+                docker_lbl.update("⚠️ Docker not found (recommended)")
+                docker_lbl.styles.color = "yellow"
+            await asyncio.sleep(0.1)
             
-            self.query_one("#check Button").disabled = False
-            self.query_one("#check Button").focus()
+            # Check Write Permissions
+            perm_lbl = self.query_one("#check_perms", Label)
+            data_dir = get_data_dir()
+            try:
+                data_dir.mkdir(parents=True, exist_ok=True)
+                if os.access(data_dir, os.W_OK):
+                    perm_lbl.update(f"✅ Write access to {data_dir}")
+                    perm_lbl.styles.color = "green"
+                    perm_ok = True
+                else:
+                    raise PermissionError
+            except Exception:
+                perm_lbl.update(f"❌ No write access to {data_dir}")
+                perm_lbl.styles.color = "red"
+                perm_ok = False
+            
+            if py_ok and git_ok and perm_ok:
+                self.query_one("#check Button").disabled = False
+                self.query_one("#check Button").focus()
 
         self.run_worker(_check())
 
     def run_install(self) -> None:
-        """Simulate tool installation."""
+        """Run real tool installation."""
         async def _install():
             bar = self.query_one(ProgressBar)
             status = self.query_one("#install_status", Label)
+            btn = self.query_one("#install Button")
             
-            tools = ["subfinder", "dnsx", "httpx", "nuclei", "dalfox", "ffuf"]
-            step_size = 100 / len(tools)
+            # Initialize ToolInstaller
+            # tools/ directory relative to project root
+            try:
+                tools_dir = get_config_dir().parent / "tools"
+                installer = ToolInstaller(tools_dir)
+                
+                # Load registry
+                registry = installer.load_registry()
+                tools = list(registry.get("tools", {}).keys())
+            except Exception as e:
+                status.update(f"❌ Initialization failed: {e}")
+                status.styles.color = "red"
+                return
+
+            if not tools:
+                status.update("⚠️ No tools found in registry.")
+                btn.disabled = False
+                return
+
+            bar.update(total=len(tools), progress=0)
             
+            failed = []
             for tool in tools:
                 status.update(f"Installing {tool}...")
-                # Simulate work
-                await asyncio.sleep(0.8)
-                bar.advance(step_size)
+                try:
+                    await installer.install_tool(tool)
+                    # Verify
+                    if not installer.verify_tool(tool):
+                        failed.append(f"{tool} (verification failed)")
+                except Exception as e:
+                    failed.append(f"{tool} ({str(e)})")
+                
+                bar.advance(1)
             
-            status.update("All tools installed successfully!")
-            status.styles.color = "green"
-            self.query_one("#install Button").disabled = False
-            self.query_one("#install Button").focus()
+            if failed:
+                status.update(f"⚠️ Installed with errors: {len(failed)} failed")
+                status.styles.color = "yellow"
+            else:
+                status.update("✅ All tools installed successfully!")
+                status.styles.color = "green"
+            
+            btn.disabled = False
+            btn.focus()
 
         self.run_worker(_install())

@@ -1,4 +1,5 @@
 import asyncio
+from pathlib import Path
 from typing import Any
 
 from rich.text import Text
@@ -8,64 +9,11 @@ from textual.containers import Container, Horizontal, Vertical
 from textual.screen import Screen
 from textual.widgets import Button, DataTable, Footer, Header, Label
 
-# Mock Dependency Manager since real one is missing implementation
-class DependencyManager:
-    """Manages dependencies like wordlists and templates."""
-    
-    def __init__(self):
-        # Mock data
-        self.deps = {
-            "nuclei-templates": {
-                "name": "Nuclei Templates",
-                "type": "templates",
-                "version": "v9.8.0",
-                "status": "installed",
-                "description": "Community curated list of templates for the nuclei engine."
-            },
-            "seclists": {
-                "name": "SecLists",
-                "type": "wordlists",
-                "version": "-",
-                "status": "missing",
-                "description": "SecLists is the security tester's companion."
-            },
-            "fuzz-db": {
-                "name": "FuzzDB",
-                "type": "wordlists",
-                "version": "-",
-                "status": "missing",
-                "description": "Dictionary of attack patterns and primitives."
-            },
-            "assetnote-wordlists": {
-                "name": "Assetnote Wordlists",
-                "type": "wordlists",
-                "version": "-",
-                "status": "missing",
-                "description": "Automated generated wordlists from Assetnote."
-            }
-        }
-
-    async def get_dependencies(self) -> dict[str, Any]:
-        """Get all dependencies."""
-        await asyncio.sleep(0.1) # Simulate IO
-        return self.deps
-
-    async def install(self, dep_id: str):
-        """Install a dependency."""
-        await asyncio.sleep(2) # Simulate download
-        if dep_id in self.deps:
-            self.deps[dep_id]["status"] = "installed"
-            self.deps[dep_id]["version"] = "latest"
-
-    async def update(self, dep_id: str):
-        """Update a dependency."""
-        await asyncio.sleep(2) # Simulate update
-        if dep_id in self.deps:
-            self.deps[dep_id]["version"] = "v.new"
-
-    async def verify(self, dep_id: str) -> bool:
-        """Verify a dependency."""
-        return self.deps.get(dep_id, {}).get("status") == "installed"
+from galehuntui.tools.deps.manager import (
+    DependencyManager,
+    DependencyStatus,
+    DependencyType,
+)
 
 
 class DepsManagerScreen(Screen):
@@ -80,7 +28,9 @@ class DepsManagerScreen(Screen):
 
     def __init__(self, name: str | None = None, id: str | None = None, classes: str | None = None) -> None:
         super().__init__(name, id, classes)
-        self.manager = DependencyManager()
+        # Initialize real dependency manager
+        deps_dir = Path.home() / ".local" / "share" / "galehuntui" / "deps"
+        self.manager = DependencyManager(deps_dir)
         self.selected_dep_id: str | None = None
 
     def compose(self) -> ComposeResult:
@@ -136,15 +86,21 @@ class DepsManagerScreen(Screen):
             t_table.clear()
             w_table.clear()
             
-            for dep_id, config in deps.items():
-                name = config.get("name", dep_id)
-                status_raw = config.get("status", "unknown")
-                version = config.get("version", "-")
-                desc = config.get("description", "")
-                dtype = config.get("type", "wordlists")
+            for dep in deps:
+                name = dep.name
+                status_enum = dep.status
+                version = dep.version or "-"
+                desc = dep.description
+                dtype = dep.type
                 
-                if status_raw == "installed":
+                if status_enum == DependencyStatus.INSTALLED:
                     status = Text("Installed", style="bold green")
+                elif status_enum == DependencyStatus.UPDATE_AVAILABLE:
+                    status = Text("Update Available", style="bold yellow")
+                elif status_enum == DependencyStatus.INSTALLING:
+                    status = Text("Installing...", style="bold blue")
+                elif status_enum == DependencyStatus.ERROR:
+                    status = Text("Error", style="bold red")
                 else:
                     status = Text("Missing", style="bold red")
                 
@@ -155,10 +111,10 @@ class DepsManagerScreen(Screen):
                     desc
                 ]
                 
-                if dtype == "templates":
-                    t_table.add_row(*row, key=dep_id)
+                if dtype == DependencyType.TEMPLATES:
+                    t_table.add_row(*row, key=dep.id)
                 else:
-                    w_table.add_row(*row, key=dep_id)
+                    w_table.add_row(*row, key=dep.id)
                     
         except Exception as e:
             self.notify(f"Failed to load dependencies: {e}", severity="error")
@@ -187,8 +143,11 @@ class DepsManagerScreen(Screen):
             
         self.notify(f"Updating {self.selected_dep_id}...", severity="information")
         try:
-            await self.manager.update(self.selected_dep_id)
-            self.notify(f"Updated {self.selected_dep_id}", severity="information")
+            result = await self.manager.update(self.selected_dep_id)
+            if result:
+                self.notify(f"Updated {self.selected_dep_id}", severity="information")
+            else:
+                self.notify(f"No update available for {self.selected_dep_id}", severity="warning")
             _ = self.load_deps()
         except Exception as e:
             self.notify(f"Failed to update: {e}", severity="error")
@@ -200,11 +159,17 @@ class DepsManagerScreen(Screen):
             self.notify("No dependency selected", severity="warning")
             return
             
-        is_valid = await self.manager.verify(self.selected_dep_id)
-        if is_valid:
-            self.notify(f"{self.selected_dep_id} is valid", severity="information")
-        else:
-            self.notify(f"{self.selected_dep_id} is invalid or missing", severity="error")
+        try:
+            is_valid = await self.manager.verify(self.selected_dep_id)
+            if is_valid:
+                self.notify(f"{self.selected_dep_id} is valid", severity="information")
+            else:
+                self.notify(f"{self.selected_dep_id} is invalid or missing", severity="error")
+            
+            # Refresh to update status if it changed
+            _ = self.load_deps()
+        except Exception as e:
+            self.notify(f"Failed to verify: {e}", severity="error")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle button clicks."""

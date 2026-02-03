@@ -1,8 +1,18 @@
+from datetime import datetime
+from pathlib import Path
+from typing import Optional
+
+from textual import work
 from textual.app import ComposeResult
 from textual.screen import Screen
 from textual.widgets import Header, Footer, Button, DataTable, Static, Label, Digits
 from textual.containers import Container, Horizontal, Vertical
 from textual.binding import Binding
+
+from galehuntui.storage.database import Database
+from galehuntui.core.config import get_data_dir
+from galehuntui.core.models import RunState, Severity
+from galehuntui.tools.installer import ToolInstaller
 
 class HomeScreen(Screen):
     """The main dashboard screen of GaleHunTUI."""
@@ -140,10 +150,10 @@ class HomeScreen(Screen):
         with Container(id="home-container"):
             # Top Stats Row
             with Horizontal(id="stats-panel"):
-                yield self._make_stat_card("Total Runs", "42")
-                yield self._make_stat_card("Critical Findings", "12")
-                yield self._make_stat_card("Tools Installed", "15/18")
-                yield self._make_stat_card("Last Scan", "2h ago")
+                yield self._make_stat_card("Total Runs", "-", value_id="stat_total_runs")
+                yield self._make_stat_card("Critical Findings", "-", value_id="stat_critical_findings")
+                yield self._make_stat_card("Tools Installed", "-", value_id="stat_tools_installed")
+                yield self._make_stat_card("Last Scan", "-", value_id="stat_last_scan")
 
             # Main Content Area
             # Left: Recent Runs
@@ -164,26 +174,26 @@ class HomeScreen(Screen):
                 # System Status
                 with Vertical(classes="status-box"):
                     yield Label("System Status", classes="panel-header")
-                    yield self._make_status_row("Database", "Connected")
-                    yield self._make_status_row("Docker", "Available")
-                    yield self._make_status_row("Network", "Online")
+                    yield self._make_status_row("Database", "Checking...", id="status_db")
+                    yield self._make_status_row("Docker", "Checking...", id="status_docker")
+                    yield self._make_status_row("Network", "Online", id="status_network")
 
         yield Footer()
 
-    def _make_stat_card(self, label: str, value: str) -> Vertical:
+    def _make_stat_card(self, label: str, value: str, value_id: Optional[str] = None) -> Vertical:
         """Create a stat card with value and label."""
         # Using Label for value instead of Digits for better layout control in this grid
         return Vertical(
-            Label(value, classes="stat-value"),
+            Label(value, classes="stat-value", id=value_id),
             Label(label, classes="stat-label"),
             classes="stat-card"
         )
 
-    def _make_status_row(self, label: str, status: str) -> Horizontal:
+    def _make_status_row(self, label: str, status: str, id: Optional[str] = None) -> Horizontal:
         """Create a status row with a dot and text."""
         return Horizontal(
             Label("●", classes="status-dot"),
-            Label(f"{label}: {status}", classes="status-text"),
+            Label(f"{label}: {status}", classes="status-text", id=id),
             classes="status-row"
         )
 
@@ -192,17 +202,134 @@ class HomeScreen(Screen):
         table = self.query_one("#recent_runs_table", DataTable)
         table.add_columns("ID", "Target", "Profile", "Status", "Findings", "Date")
         
-        # Mock Data
-        mock_data = [
-            ("RUN-1042", "example.com", "Standard", "Completed", "3 High, 5 Med", "2024-02-03 14:30"),
-            ("RUN-1041", "api.test.org", "Quick", "Completed", "0 Issues", "2024-02-03 12:15"),
-            ("RUN-1040", "staging.dev", "Deep", "Failed", "-", "2024-02-02 09:45"),
-            ("RUN-1039", "legacy-app", "Standard", "Completed", "1 Critical", "2024-02-01 16:20"),
-            ("RUN-1038", "intranet", "Quick", "Completed", "2 Low", "2024-02-01 10:00"),
-        ]
-        
-        for row in mock_data:
-            table.add_row(*row)
+        # Load real data in background
+        self._load_dashboard_data()
+
+    @work(exclusive=True)
+    async def _load_dashboard_data(self) -> None:
+        """Load dashboard data from database in background."""
+        try:
+            data_dir = get_data_dir()
+            db_path = data_dir / "galehuntui.db"
+            
+            # Update DB Status
+            db_status_label = self.query_one("#status_db", Label)
+            if db_path.exists():
+                db_status_label.update("Database: Connected")
+                db_status_label.styles.color = "green"
+            else:
+                db_status_label.update("Database: Initializing")
+            
+            # Check Docker (simple check)
+            # In a real scenario, we might want to check if docker socket exists or run a command
+            # For now, we'll check if docker command is available
+            import shutil
+            docker_path = shutil.which("docker")
+            docker_status_label = self.query_one("#status_docker", Label)
+            if docker_path:
+                docker_status_label.update("Docker: Available")
+                # docker_status_label.styles.color = "green" # Default text color is fine
+            else:
+                docker_status_label.update("Docker: Not Found")
+                docker_status_label.styles.color = "red"
+
+            runs = []
+            total_runs_count = 0
+            critical_findings_count = 0
+            
+            with Database(db_path) as db:
+                db.init_db()
+                # Get recent runs
+                runs = db.list_runs(limit=10)
+                
+                # Get all runs count (for stats) - naive approach, list_runs with higher limit
+                # Ideally DB should have count method, but we work with what we have
+                all_runs = db.list_runs(limit=1000)
+                total_runs_count = len(all_runs)
+                
+                # Calculate critical findings across all runs
+                for run in all_runs:
+                    if Severity.CRITICAL.value in run.findings_by_severity:
+                        critical_findings_count += run.findings_by_severity[Severity.CRITICAL.value]
+
+            # Update Stats
+            self.query_one("#stat_total_runs", Label).update(str(total_runs_count))
+            self.query_one("#stat_critical_findings", Label).update(str(critical_findings_count))
+            
+            # Check Tools
+            installer = ToolInstaller(data_dir / "tools")
+            try:
+                registry = installer.load_registry()
+                all_tools = registry.get("tools", {})
+                installed_tools = sum(1 for t in all_tools if installer.verify_tool(t))
+                total_tools = len(all_tools)
+                self.query_one("#stat_tools_installed", Label).update(f"{installed_tools}/{total_tools}")
+            except Exception as e:
+                self.query_one("#stat_tools_installed", Label).update("Error")
+            
+            # Last Scan Time
+            if runs:
+                last_run = runs[0]
+                time_diff = datetime.now() - last_run.created_at
+                
+                if time_diff.days > 0:
+                    time_str = f"{time_diff.days}d ago"
+                elif time_diff.seconds >= 3600:
+                    time_str = f"{time_diff.seconds // 3600}h ago"
+                elif time_diff.seconds >= 60:
+                    time_str = f"{time_diff.seconds // 60}m ago"
+                else:
+                    time_str = "Just now"
+                    
+                self.query_one("#stat_last_scan", Label).update(time_str)
+            else:
+                self.query_one("#stat_last_scan", Label).update("Never")
+
+            # Update Table
+            table = self.query_one("#recent_runs_table", DataTable)
+            table.clear()
+            
+            for run in runs:
+                # Format Status
+                status = run.state.value.title()
+                
+                # Format Findings Summary
+                findings_summary = []
+                if run.findings_by_severity:
+                    crit = run.findings_by_severity.get(Severity.CRITICAL.value, 0)
+                    high = run.findings_by_severity.get(Severity.HIGH.value, 0)
+                    med = run.findings_by_severity.get(Severity.MEDIUM.value, 0)
+                    
+                    if crit > 0:
+                        findings_summary.append(f"{crit} Crit")
+                    if high > 0:
+                        findings_summary.append(f"{high} High")
+                    if med > 0:
+                        findings_summary.append(f"{med} Med")
+                        
+                    summary_text = ", ".join(findings_summary) if findings_summary else f"{run.total_findings} Issues"
+                else:
+                    summary_text = "0 Issues" if run.total_findings == 0 else f"{run.total_findings} Issues"
+                
+                if not summary_text:
+                    summary_text = "-"
+
+                # Format Date
+                date_str = run.created_at.strftime("%Y-%m-%d %H:%M")
+                
+                # Add row
+                table.add_row(
+                    run.id[:8], # Short ID
+                    run.target,
+                    run.profile.title(),
+                    status,
+                    summary_text,
+                    date_str
+                )
+
+        except Exception as e:
+            self.notify(f"Failed to load dashboard data: {e}", severity="error")
+
 
     def action_new_run(self) -> None:
         self.app.push_screen("new_run")

@@ -9,6 +9,8 @@ from datetime import datetime
 from enum import Enum
 from pathlib import Path
 from typing import Optional
+from urllib.parse import urlparse
+import fnmatch
 
 from galehuntui.core.constants import EngagementMode, StepStatus, DEFAULTS
 
@@ -278,9 +280,44 @@ class ScopeConfig:
         Returns:
             True if URL is in scope, False otherwise
         """
-        # TODO: Implement scope validation logic
-        # This is a placeholder that will be implemented in scope validation module
-        return True
+        try:
+            parsed = urlparse(url)
+            host = parsed.netloc.lower()
+            path = parsed.path.lower()
+            
+            if not host and not parsed.scheme:
+                if "/" in url:
+                    host = url.split("/")[0].lower()
+                    path = "/" + "/".join(url.split("/")[1:])
+                else:
+                    host = url.lower()
+                    path = ""
+            
+            for pattern in self.denylist:
+                if fnmatch.fnmatch(host, pattern.lower()):
+                    return False
+            
+            if self.allowlist:
+                allowed = False
+                for pattern in self.allowlist:
+                    if fnmatch.fnmatch(host, pattern.lower()):
+                        allowed = True
+                        break
+                if not allowed:
+                    return False
+            
+            for excluded_path in self.excluded_paths:
+                if path.startswith(excluded_path.lower()):
+                    return False
+            
+            for excluded_ext in self.excluded_extensions:
+                if path.endswith(excluded_ext.lower()):
+                    return False
+            
+            return True
+            
+        except Exception:
+            return False
 
 
 # ============================================================================

@@ -1,12 +1,29 @@
-from textual.screen import Screen
-from textual.app import ComposeResult
-from textual.containers import Horizontal, Vertical, VerticalScroll
-from textual.widgets import (
-    Label, ListView, ListItem, ContentSwitcher, Button, 
-    Input, Checkbox, Select, Static, Header, Footer
-)
+from pathlib import Path
+from typing import Any
+
+import yaml
 from textual import on
+from textual.app import ComposeResult
 from textual.binding import Binding
+from textual.containers import Horizontal, Vertical, VerticalScroll
+from textual.screen import Screen
+from textual.widgets import (
+    Button,
+    Checkbox,
+    ContentSwitcher,
+    Footer,
+    Header,
+    Input,
+    Label,
+    ListItem,
+    ListView,
+    Select,
+    Static,
+)
+
+# We use standard XDG config path for user settings
+# ~/.config/galehuntui/config.yaml
+
 
 class SettingsScreen(Screen):
     """Settings configuration screen."""
@@ -132,14 +149,14 @@ class SettingsScreen(Screen):
                         yield Label("General Settings", classes="section-title")
                         
                         with Vertical(classes="setting-item"):
-                            yield Checkbox("Check for updates on startup", value=True)
+                            yield Checkbox("Check for updates on startup", value=True, id="chk-updates")
                         
                         with Vertical(classes="setting-item"):
-                            yield Checkbox("Send anonymous usage statistics", value=False)
+                            yield Checkbox("Send anonymous usage statistics", value=False, id="chk-stats")
                         
                         with Vertical(classes="setting-item"):
                             yield Label("Default Download Path", classes="setting-label")
-                            yield Input(placeholder="/home/user/galehuntui/downloads")
+                            yield Input(placeholder="/home/user/galehuntui/downloads", id="input-download-path")
 
                     # Appearance Settings
                     with VerticalScroll(id="appearance", classes="settings-container"):
@@ -150,14 +167,15 @@ class SettingsScreen(Screen):
                             yield Select(
                                 options=[("Dark", "Dark"), ("Light", "Light"), ("System", "System")],
                                 value="Dark",
-                                allow_blank=False
+                                allow_blank=False,
+                                id="select-theme"
                             )
                         
                         with Vertical(classes="setting-item"):
-                            yield Checkbox("Compact Mode", value=False)
+                            yield Checkbox("Compact Mode", value=False, id="chk-compact")
                         
                         with Vertical(classes="setting-item"):
-                            yield Checkbox("Show Animations", value=True)
+                            yield Checkbox("Show Animations", value=True, id="chk-animations")
 
                     # Performance Settings
                     with VerticalScroll(id="performance", classes="settings-container"):
@@ -165,12 +183,12 @@ class SettingsScreen(Screen):
                         
                         with Vertical(classes="setting-item"):
                             yield Label("Max Concurrency", classes="setting-label")
-                            yield Input(value="10", type="integer")
+                            yield Input(value="10", type="integer", id="input-concurrency")
                             yield Label("Maximum number of concurrent tasks", classes="setting-description")
 
                         with Vertical(classes="setting-item"):
                             yield Label("Request Timeout (seconds)", classes="setting-label")
-                            yield Input(value="30", type="integer")
+                            yield Input(value="30", type="integer", id="input-timeout")
 
                     # Logging Settings
                     with VerticalScroll(id="logging", classes="settings-container"):
@@ -181,15 +199,16 @@ class SettingsScreen(Screen):
                             yield Select(
                                 options=[("DEBUG", "DEBUG"), ("INFO", "INFO"), ("WARNING", "WARNING"), ("ERROR", "ERROR")],
                                 value="INFO",
-                                allow_blank=False
+                                allow_blank=False,
+                                id="select-log-level"
                             )
                             
                         with Vertical(classes="setting-item"):
-                            yield Checkbox("Enable File Logging", value=True)
+                            yield Checkbox("Enable File Logging", value=True, id="chk-file-logging")
                             
                         with Vertical(classes="setting-item"):
                             yield Label("Log File Path", classes="setting-label")
-                            yield Input(value="~/.local/share/galehuntui/logs/app.log")
+                            yield Input(value="~/.local/share/galehuntui/logs/app.log", id="input-log-path")
 
                     # About
                     with VerticalScroll(id="about", classes="settings-container"):
@@ -202,6 +221,59 @@ class SettingsScreen(Screen):
                     yield Button("Save Changes", variant="primary", id="btn-save")
 
         yield Footer()
+
+    def on_mount(self) -> None:
+        """Load settings on mount."""
+        self.load_settings()
+
+    def get_config_path(self) -> Path:
+        """Get path to config file."""
+        return Path.home() / ".config" / "galehuntui" / "config.yaml"
+
+    def load_settings(self) -> None:
+        """Load settings from config file."""
+        config_path = self.get_config_path()
+        if not config_path.exists():
+            return
+
+        try:
+            with config_path.open("r") as f:
+                config = yaml.safe_load(f)
+                
+            if not config:
+                return
+
+            # General
+            general = config.get("general", {})
+            self.query_one("#chk-updates", Checkbox).value = general.get("check_updates", True)
+            self.query_one("#chk-stats", Checkbox).value = general.get("send_stats", False)
+            self.query_one("#input-download-path", Input).value = general.get("download_path", "")
+
+            # Appearance
+            appearance = config.get("appearance", {})
+            theme = appearance.get("theme", "Dark")
+            if theme in ["Dark", "Light", "System"]:
+                self.query_one("#select-theme", Select).value = theme
+            
+            self.query_one("#chk-compact", Checkbox).value = appearance.get("compact", False)
+            self.query_one("#chk-animations", Checkbox).value = appearance.get("animations", True)
+
+            # Performance
+            performance = config.get("performance", {})
+            self.query_one("#input-concurrency", Input).value = str(performance.get("max_concurrency", 10))
+            self.query_one("#input-timeout", Input).value = str(performance.get("timeout", 30))
+
+            # Logging
+            logging = config.get("logging", {})
+            level = logging.get("level", "INFO")
+            if level in ["DEBUG", "INFO", "WARNING", "ERROR"]:
+                self.query_one("#select-log-level", Select).value = level
+                
+            self.query_one("#chk-file-logging", Checkbox).value = logging.get("file_logging", True)
+            self.query_one("#input-log-path", Input).value = logging.get("file_path", "~/.local/share/galehuntui/logs/app.log")
+
+        except Exception as e:
+            self.notify(f"Failed to load settings: {e}", severity="error")
 
     def on_list_view_selected(self, event: ListView.Selected) -> None:
         """Handle sidebar selection."""
@@ -216,9 +288,45 @@ class SettingsScreen(Screen):
 
     @on(Button.Pressed, "#btn-save")
     def action_save_settings(self) -> None:
-        """Mock save settings."""
-        self.notify("Settings saved successfully!")
-        # In a real app, we would write to config here
+        """Save settings to config file."""
+        config_path = self.get_config_path()
+        
+        # Collect values
+        try:
+            config = {
+                "general": {
+                    "check_updates": self.query_one("#chk-updates", Checkbox).value,
+                    "send_stats": self.query_one("#chk-stats", Checkbox).value,
+                    "download_path": self.query_one("#input-download-path", Input).value,
+                },
+                "appearance": {
+                    "theme": self.query_one("#select-theme", Select).value,
+                    "compact": self.query_one("#chk-compact", Checkbox).value,
+                    "animations": self.query_one("#chk-animations", Checkbox).value,
+                },
+                "performance": {
+                    "max_concurrency": int(self.query_one("#input-concurrency", Input).value or 10),
+                    "timeout": int(self.query_one("#input-timeout", Input).value or 30),
+                },
+                "logging": {
+                    "level": self.query_one("#select-log-level", Select).value,
+                    "file_logging": self.query_one("#chk-file-logging", Checkbox).value,
+                    "file_path": self.query_one("#input-log-path", Input).value,
+                }
+            }
+            
+            # Ensure config directory exists
+            config_path.parent.mkdir(parents=True, exist_ok=True)
+            
+            with config_path.open("w") as f:
+                yaml.dump(config, f, default_flow_style=False)
+                
+            self.notify("Settings saved successfully!")
+            
+        except ValueError as e:
+            self.notify(f"Invalid input: {e}", severity="error")
+        except Exception as e:
+            self.notify(f"Failed to save settings: {e}", severity="error")
     
     @on(Button.Pressed, "#btn-cancel")
     def action_cancel(self) -> None:

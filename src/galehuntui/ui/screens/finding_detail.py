@@ -121,15 +121,15 @@ class FindingDetailScreen(Screen):
 
     def __init__(
         self,
-        findings: List[Finding],
+        findings: Optional[List[Finding]] = None,
         initial_index: int = 0,
         name: Optional[str] = None,
         id: Optional[str] = None,
         classes: Optional[str] = None,
     ) -> None:
         super().__init__(name=name, id=id, classes=classes)
-        self.findings = findings
-        self.current_index = max(0, min(initial_index, len(findings) - 1))
+        self.findings = findings or []
+        self.current_index = max(0, min(initial_index, len(self.findings) - 1)) if self.findings else 0
 
     def get_current_finding(self) -> Optional[Finding]:
         if not self.findings:

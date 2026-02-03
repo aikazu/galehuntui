@@ -32,6 +32,15 @@ def get_config_dir() -> Path:
     return project_root / "configs"
 
 
+def get_data_dir() -> Path:
+    """Get the data directory path.
+    
+    Returns:
+        Path to data directory (~/.local/share/galehuntui)
+    """
+    return Path.home() / ".local" / "share" / "galehuntui"
+
+
 # ============================================================================
 # Scope Configuration Loader
 # ============================================================================

@@ -1,3 +1,7 @@
+from pathlib import Path
+from typing import Dict, Any, Optional
+import yaml
+
 from textual.app import ComposeResult
 from textual.screen import Screen
 from textual.widgets import (
@@ -9,12 +13,12 @@ from textual.widgets import (
     TextArea, 
     ListView, 
     ListItem, 
-    Static
 )
 from textual.containers import Container, Horizontal, Vertical, VerticalScroll
 from textual.reactive import reactive
 from textual.binding import Binding
-from typing import List, Dict, Any
+
+from galehuntui.core.config import get_config_dir
 
 class ScopeEditorScreen(Screen):
     """Screen for editing scope configurations."""
@@ -90,25 +94,11 @@ class ScopeEditorScreen(Screen):
     }
     """
 
-    # Mock data for now
-    current_scope = reactive(None)
+    # Tracks the full path of the currently edited file
+    current_scope_path: reactive[Optional[Path]] = reactive(None)
     
-    MOCK_SCOPES: Dict[str, Any] = {
-        "example.com": {
-            "target": "example.com",
-            "allowlist": ["*.example.com", "api.example.com"],
-            "denylist": ["admin.example.com", "*.staging.example.com"],
-            "exclusions_paths": ["/logout", "/reset-password"],
-            "exclusions_exts": [".pdf", ".doc", ".jpg"]
-        },
-        "test-app.local": {
-            "target": "test-app.local",
-            "allowlist": ["test-app.local"],
-            "denylist": [],
-            "exclusions_paths": [],
-            "exclusions_exts": []
-        }
-    }
+    # Cache scope data: path -> parsed dict
+    _scope_cache: Dict[Path, Dict[str, Any]] = {}
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -154,42 +144,108 @@ class ScopeEditorScreen(Screen):
         """Initialize the screen with data."""
         self.load_scopes()
 
+    def get_scope_files(self) -> list[Path]:
+        """Find all scope YAML files in configuration directories."""
+        scope_files = []
+        
+        # Check project configs dir
+        config_dir = get_config_dir()
+        if config_dir.exists():
+            for p in config_dir.glob("*.yaml"):
+                # Simple heuristic: if filename starts with scope or contains scope, 
+                # or we just try to parse all yamls and check structure?
+                # For now, let's load all .yaml files in configs/ that look like scopes
+                # or just all .yaml files except known ones like profiles.yaml/modes.yaml
+                if p.name in ["profiles.yaml", "modes.yaml", "registry.yaml"]:
+                    continue
+                scope_files.append(p)
+                
+        # Check user config dir (~/.config/galehuntui)
+        user_config = Path.home() / ".config" / "galehuntui"
+        if user_config.exists():
+            for p in user_config.glob("*.yaml"):
+                if p.name in ["profiles.yaml", "modes.yaml", "registry.yaml"]:
+                    continue
+                scope_files.append(p)
+                
+        return sorted(list(set(scope_files)))
+
     def load_scopes(self) -> None:
-        """Load scopes into the list."""
+        """Load scope files into the list."""
         list_view = self.query_one("#scope-list", ListView)
         list_view.clear()
         
-        for name in self.MOCK_SCOPES.keys():
-            list_view.append(ListItem(Label(name), id=f"scope-{name}"))
+        self._scope_cache.clear()
+        files = self.get_scope_files()
+        
+        first_valid = None
+
+        for path in files:
+            try:
+                # Try to load to verify it's a scope file and get the target
+                with open(path, "r") as f:
+                    data = yaml.safe_load(f)
+                
+                if not data or "target" not in data or "domain" not in data["target"]:
+                    continue
+                    
+                target = data["target"]["domain"]
+                self._scope_cache[path] = data
+                
+                # Create list item with path as ID (sanitized)
+                safe_id = f"scope-{path.name.replace('.', '_')}"
+                list_view.append(ListItem(Label(target), id=safe_id))
+                
+                if not first_valid:
+                    first_valid = path
+                    
+            except Exception:
+                # Skip invalid files
+                continue
         
         # Select first if available and nothing selected
-        if self.MOCK_SCOPES and not self.current_scope:
-            first = list(self.MOCK_SCOPES.keys())[0]
-            self.load_scope_details(first)
+        if first_valid and not self.current_scope_path:
+            self.load_scope_details(first_valid)
 
     def on_list_view_selected(self, event: ListView.Selected) -> None:
         """Handle scope selection."""
-        if event.item and event.item.id:
-            name = event.item.id.replace("scope-", "")
-            self.load_scope_details(name)
-
-    def load_scope_details(self, name: str) -> None:
-        """Populate form with scope data."""
-        if name not in self.MOCK_SCOPES:
+        if not event.item:
             return
             
-        data = self.MOCK_SCOPES[name]
-        self.current_scope = name
+        # Find path from cache that matches the label or ID logic
+        # Since we can't easily store full path in ID safely, we look up by target name 
+        # or we just iterate our cache. 
+        # Better: iterate cache and match the label
+        selected_label = event.item.query_one(Label).renderable
         
-        self.query_one("#input-target", Input).value = data["target"]
-        self.query_one("#input-allowlist", TextArea).text = "\n".join(data["allowlist"])
-        self.query_one("#input-denylist", TextArea).text = "\n".join(data["denylist"])
-        self.query_one("#input-excl-paths", TextArea).text = "\n".join(data["exclusions_paths"])
-        self.query_one("#input-excl-exts", TextArea).text = "\n".join(data["exclusions_exts"])
+        for path, data in self._scope_cache.items():
+            if str(selected_label) == data["target"]["domain"]:
+                self.load_scope_details(path)
+                return
+
+    def load_scope_details(self, path: Path) -> None:
+        """Populate form with scope data from file."""
+        if path not in self._scope_cache:
+            return
+            
+        data = self._scope_cache[path]
+        self.current_scope_path = path
+        
+        target_info = data.get("target", {})
+        scope_info = data.get("scope", {})
+        exclusions = scope_info.get("exclusions", {})
+        
+        self.query_one("#input-target", Input).value = target_info.get("domain", "")
+        self.query_one("#input-allowlist", TextArea).text = "\n".join(scope_info.get("allowlist", []))
+        self.query_one("#input-denylist", TextArea).text = "\n".join(scope_info.get("denylist", []))
+        self.query_one("#input-excl-paths", TextArea).text = "\n".join(exclusions.get("paths", []))
+        self.query_one("#input-excl-exts", TextArea).text = "\n".join(exclusions.get("extensions", []))
 
     def action_new_scope(self) -> None:
         """Clear form for new scope."""
-        self.current_scope = None
+        self.current_scope_path = None
+        self.query_one("#scope-list", ListView).index = None
+        
         self.query_one("#input-target", Input).value = ""
         self.query_one("#input-allowlist", TextArea).text = ""
         self.query_one("#input-denylist", TextArea).text = ""
@@ -199,37 +255,62 @@ class ScopeEditorScreen(Screen):
         self.notify("New scope template created")
 
     def action_save_scope(self) -> None:
-        """Mock save scope."""
-        target = self.query_one("#input-target", Input).value
+        """Save scope to file."""
+        target = self.query_one("#input-target", Input).value.strip()
         if not target:
             self.notify("Target domain is required", severity="error")
             return
 
         # Collect data
         data = {
-            "target": target,
-            "allowlist": [x for x in self.query_one("#input-allowlist", TextArea).text.split("\n") if x.strip()],
-            "denylist": [x for x in self.query_one("#input-denylist", TextArea).text.split("\n") if x.strip()],
-            "exclusions_paths": [x for x in self.query_one("#input-excl-paths", TextArea).text.split("\n") if x.strip()],
-            "exclusions_exts": [x for x in self.query_one("#input-excl-exts", TextArea).text.split("\n") if x.strip()],
+            "target": {
+                "domain": target
+            },
+            "scope": {
+                "allowlist": [x.strip() for x in self.query_one("#input-allowlist", TextArea).text.split("\n") if x.strip()],
+                "denylist": [x.strip() for x in self.query_one("#input-denylist", TextArea).text.split("\n") if x.strip()],
+                "exclusions": {
+                    "paths": [x.strip() for x in self.query_one("#input-excl-paths", TextArea).text.split("\n") if x.strip()],
+                    "extensions": [x.strip() for x in self.query_one("#input-excl-exts", TextArea).text.split("\n") if x.strip()]
+                }
+            }
         }
 
-        # Update mock storage
-        self.MOCK_SCOPES[target] = data
-        self.current_scope = target
+        # Determine file path
+        if self.current_scope_path:
+            save_path = self.current_scope_path
+        else:
+            # Create new file name based on domain
+            filename = f"scope_{target.replace('.', '_')}.yaml"
+            save_path = get_config_dir() / filename
         
-        # Refresh list
-        self.load_scopes()
-        self.notify(f"Scope '{target}' saved successfully")
+        try:
+            # Ensure directory exists
+            save_path.parent.mkdir(parents=True, exist_ok=True)
+            
+            with open(save_path, "w") as f:
+                yaml.dump(data, f, sort_keys=False, default_flow_style=False)
+                
+            self.notify(f"Scope saved to {save_path.name}")
+            
+            # Refresh list and select the saved item
+            self.load_scopes()
+            
+            # Update selection to the file we just saved
+            # (Requires re-finding the path in the cache/list)
+            # For simplicity, we just set current_scope_path
+            self.current_scope_path = save_path
+            
+        except Exception as e:
+            self.notify(f"Error saving scope: {e}", severity="error")
 
     def action_validate_scope(self) -> None:
-        """Mock validation."""
+        """Validate current form data."""
         target = self.query_one("#input-target", Input).value
         if not target:
             self.notify("No target to validate", severity="error")
             return
             
-        # Mock checks
         if "." not in target:
             self.notify("Invalid domain format", severity="warning")
         else:
@@ -243,5 +324,5 @@ class ScopeEditorScreen(Screen):
         elif event.button.id == "btn-new":
             self.action_new_scope()
 
-# For backward compatibility if needed, though we should update app.py
+# For backward compatibility if needed
 ScopeScreen = ScopeEditorScreen
