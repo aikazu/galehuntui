@@ -240,12 +240,6 @@ class RunDetailScreen(Screen):
         table = self.query_one("#steps-table", DataTable)
         log = self.query_one("#run-log", RichLog)
         
-        # We'll use a simplistic approach: clear and re-add if count differs, 
-        # or just try to update. 
-        # Since DataTable doesn't support easy upsert by key without managing keys manually,
-        # and step count is small (<20), clearing is acceptable but might flicker.
-        # Better: Manage row keys.
-        
         for step in steps:
             duration_str = "--"
             if step.duration:
@@ -279,10 +273,14 @@ class RunDetailScreen(Screen):
                     if step.error_message:
                         log.write(f"[red]Details[/]: {step.error_message}")
 
-            if table.is_valid_row_index(table.get_row_index(row_key)):
+            # Check if row exists by trying to get its index
+            try:
+                table.get_row_index(row_key)
+                # Row exists, update it
                 table.update_cell(row_key, "Status", status_styled)
                 table.update_cell(row_key, "Duration", duration_str)
-            else:
+            except Exception:
+                # Row doesn't exist, add it
                 table.add_row(
                     step.name, 
                     status_styled, 
