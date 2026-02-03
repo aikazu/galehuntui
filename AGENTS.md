@@ -273,24 +273,29 @@ constraints:
 ### Path Handling (CRITICAL)
 
 ```python
-# CORRECT - Always use pathlib
+# CORRECT - Always use pathlib with workspace-relative paths
 from pathlib import Path
 
-config_path = Path.home() / ".config" / "galehuntui"
-data_dir = Path.home() / ".local" / "share" / "galehuntui"
-tools_bin = Path(__file__).parent.parent / "tools" / "bin"
+# Project root is the workspace directory
+project_root = Path(__file__).parent.parent
+config_path = project_root / "config.yaml"
+data_dir = project_root / "data"
+tools_bin = project_root / "tools" / "bin"
+logs_dir = data_dir / "logs"
+runs_dir = data_dir / "runs"
 
 # Check existence
-if not config_path.exists():
-    config_path.mkdir(parents=True)
+if not data_dir.exists():
+    data_dir.mkdir(parents=True)
 
 # Read/write
 content = config_path.read_text()
 config_path.write_text(yaml_content)
 
-# WRONG - Never use os.path or string concatenation
+# WRONG - Never use os.path, string concatenation, or home directories
 import os
 config_path = os.path.expanduser("~") + "/.config/galehuntui"  # FORBIDDEN
+data_dir = Path.home() / ".local" / "share" / "galehuntui"     # FORBIDDEN
 ```
 
 ### Guard Clauses Pattern
@@ -689,31 +694,39 @@ The application has 11 main screens:
 
 ## Storage Layout
 
+All application data is stored within the workspace directory (no home directory usage):
+
 ```
-~/.local/share/galehuntui/
-+-- galehuntui.db              # SQLite database (WAL mode)
-+-- logs/
-|   +-- app.log
-+-- audit/                      # Audit logs (compliance)
-|   +-- audit_2024-02.log
-+-- runs/
-    +-- <run_id>/
-        +-- metadata.json       # Run configuration
-        +-- config.yaml         # Scope and settings used
-        +-- artifacts/          # Raw tool outputs
-        |   +-- subfinder/
-        |   |   +-- output.json
-        |   +-- httpx/
-        |   +-- nuclei/
-        |   +-- ...
-        +-- evidence/           # Finding evidence
-        |   +-- screenshots/
-        |   +-- requests/
-        |   +-- responses/
-        +-- reports/
-            +-- report.html
-            +-- findings.json
-            +-- summary.json
+galehuntui/                     # Project root (workspace)
++-- config.yaml                 # User configuration
++-- data/                       # All application data (workspace-isolated)
+    +-- galehuntui.db           # SQLite database (WAL mode)
+    +-- logs/                   # Application logs
+    |   +-- app.log
+    +-- audit/                  # Audit logs (compliance)
+    |   +-- audit_2024-02.log
+    +-- deps/                   # Dependencies (wordlists, templates)
+    |   +-- nuclei-templates/
+    |   +-- wordlists/
+    +-- plugins/                # User plugins directory
+    +-- runs/                   # Scan run data
+        +-- <run_id>/
+            +-- metadata.json       # Run configuration
+            +-- config.yaml         # Scope and settings used
+            +-- artifacts/          # Raw tool outputs
+            |   +-- subfinder/
+            |   |   +-- output.json
+            |   +-- httpx/
+            |   +-- nuclei/
+            |   +-- ...
+            +-- evidence/           # Finding evidence
+            |   +-- screenshots/
+            |   +-- requests/
+            |   +-- responses/
+            +-- reports/
+                +-- report.html
+                +-- findings.json
+                +-- summary.json
 ```
 
 ---
@@ -1031,7 +1044,7 @@ All major roadmap items have been implemented:
 - [x] `new_run.py` - Triggers PipelineOrchestrator via background worker
 - [x] `run_detail.py` - Polls database for real-time progress/findings
 - [x] `deps_manager.py` - Uses real DependencyManager for git operations
-- [x] `settings.py` - Persists config to ~/.config/galehuntui/config.yaml
+- [x] `settings.py` - Persists config to config.yaml (workspace-relative)
 - [x] `profiles.py` - Reads/writes profiles.yaml
 - [x] `scope.py` - Scans filesystem for YAML scope files
 - [x] `setup.py` - Real Python/Git/Docker checks, real tool installation
