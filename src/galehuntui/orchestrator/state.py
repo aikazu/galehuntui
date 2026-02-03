@@ -8,8 +8,11 @@ import asyncio
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Callable, Optional, TYPE_CHECKING
 from uuid import uuid4
+
+if TYPE_CHECKING:
+    from galehuntui.storage.database import Database
 
 from galehuntui.core.constants import EngagementMode, PipelineStage, StepStatus
 from galehuntui.core.models import (
@@ -67,6 +70,7 @@ class RunStateManager:
         *,
         run_id: Optional[str] = None,
         base_dir: Optional[Path] = None,
+        db: Optional["Database"] = None,
     ) -> None:
         """Initialize run state manager.
         
@@ -74,9 +78,11 @@ class RunStateManager:
             config: Run configuration
             run_id: Optional run ID (generated if not provided)
             base_dir: Base directory for run artifacts
+            db: Optional database for step persistence
         """
         self.run_id = run_id or str(uuid4())
         self.config = config
+        self.db = db
         
         # Set up directories
         if base_dir is None:
@@ -131,10 +137,18 @@ class RunStateManager:
                 stage_dir.mkdir(parents=True, exist_ok=True)
     
     async def start_run(self) -> None:
-        """Mark run as started."""
+        """Mark run as started.
+        
+        Persists run metadata to database to enable step tracking and resume.
+        """
         async with self._lock:
             self.metadata.state = RunState.RUNNING
             self.metadata.started_at = datetime.now()
+            
+            # Persist run metadata BEFORE any steps are saved (FK constraint)
+            if self.db is not None:
+                self.db.save_run(self.metadata)
+            
             await self._notify_state_change(RunState.RUNNING)
     
     async def complete_run(self) -> None:
@@ -142,6 +156,10 @@ class RunStateManager:
         async with self._lock:
             self.metadata.state = RunState.COMPLETED
             self.metadata.completed_at = datetime.now()
+            
+            if self.db is not None:
+                self.db.save_run(self.metadata)
+            
             await self._notify_state_change(RunState.COMPLETED)
     
     async def fail_run(self, error: Optional[str] = None) -> None:
@@ -153,6 +171,10 @@ class RunStateManager:
         async with self._lock:
             self.metadata.state = RunState.FAILED
             self.metadata.completed_at = datetime.now()
+            
+            if self.db is not None:
+                self.db.save_run(self.metadata)
+            
             await self._notify_state_change(RunState.FAILED)
     
     async def cancel_run(self) -> None:
@@ -160,6 +182,10 @@ class RunStateManager:
         async with self._lock:
             self.metadata.state = RunState.CANCELLED
             self.metadata.completed_at = datetime.now()
+            
+            if self.db is not None:
+                self.db.save_run(self.metadata)
+            
             await self._notify_state_change(RunState.CANCELLED)
     
     async def pause_run(self) -> None:
@@ -241,6 +267,9 @@ class RunStateManager:
             
             self.metadata.completed_steps += 1
             
+            if self.db is not None:
+                self.db.save_step(self.run_id, step)
+            
             await self._notify_step_change(step)
     
     async def fail_step(
@@ -271,6 +300,9 @@ class RunStateManager:
                 step.duration = (step.completed_at - step.started_at).total_seconds()
             
             self.metadata.failed_steps += 1
+            
+            if self.db is not None:
+                self.db.save_step(self.run_id, step)
             
             await self._notify_step_change(step)
     
@@ -474,4 +506,36 @@ class RunStateManager:
                 }
                 for step in self._steps.values()
             ],
+        }
+    
+    @classmethod
+    async def resume(
+        cls,
+        run_id: str,
+        db: "Database",
+        config: RunConfig,
+        *,
+        base_dir: Optional[Path] = None,
+    ) -> "RunStateManager":
+        run_meta = db.get_run(run_id)
+        if run_meta is None:
+            raise ValueError(f"Run not found: {run_id}")
+        
+        steps = db.get_steps(run_id)
+        
+        manager = cls(config, run_id=run_id, base_dir=base_dir, db=db)
+        manager.metadata = run_meta
+        manager._steps = {s.name: s for s in steps}
+        
+        manager.run_dir = run_meta.run_dir
+        manager.artifacts_dir = run_meta.artifacts_dir
+        manager.evidence_dir = run_meta.evidence_dir
+        manager.reports_dir = run_meta.reports_dir
+        
+        return manager
+    
+    def get_completed_step_names(self) -> set[str]:
+        return {
+            name for name, step in self._steps.items()
+            if step.status == StepStatus.COMPLETED
         }

@@ -10,7 +10,10 @@ import logging
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Protocol, runtime_checkable
+from typing import Optional, Protocol, runtime_checkable, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from galehuntui.storage.database import Database
 
 from galehuntui.core.constants import (
     ClassificationGroup,
@@ -134,6 +137,7 @@ class PipelineOrchestrator:
         *,
         run_config: Optional[RunConfig] = None,
         state_manager: Optional[RunStateManager] = None,
+        db: Optional["Database"] = None,
     ) -> None:
         """Initialize pipeline orchestrator.
         
@@ -142,9 +146,11 @@ class PipelineOrchestrator:
             adapters: Dictionary of tool name -> adapter instances
             run_config: Optional run configuration
             state_manager: Optional state manager (created if not provided)
+            db: Optional database for step persistence
         """
         self.config = config
         self.adapters = adapters
+        self.db = db
         
         # Create run config if not provided
         if run_config is None:
@@ -162,7 +168,7 @@ class PipelineOrchestrator:
         
         # State management
         if state_manager is None:
-            state_manager = RunStateManager(run_config)
+            state_manager = RunStateManager(run_config, db=db)
         self.state = state_manager
         
         # Task scheduler for concurrent execution
@@ -796,3 +802,81 @@ class PipelineOrchestrator:
         )
         
         return cls(config, adapters, run_config=run_config)
+    
+    async def run_with_resume(
+        self,
+        target: str,
+        resume_id: Optional[str] = None,
+    ) -> RunStateManager:
+        if resume_id and self.db:
+            completed_steps = self.db.get_completed_step_names(resume_id)
+            self.state = await RunStateManager.resume(
+                resume_id,
+                self.db,
+                self.run_config,
+            )
+            logger.info(f"Resuming run {resume_id}, {len(completed_steps)} steps complete")
+        else:
+            completed_steps = set()
+        
+        if self._running:
+            raise PipelineError("Pipeline is already running")
+        
+        self._running = True
+        self._cancelled = False
+        self.run_config.target = target
+        
+        try:
+            await self.state.initialize()
+            
+            step_names = [stage.value for stage in self.config.stages]
+            if not resume_id:
+                self.state.register_steps(step_names)
+            
+            await self.scheduler.start()
+            await self.state.start_run()
+            
+            logger.info(f"Starting pipeline for target: {target}")
+            
+            for stage in self.config.stages:
+                if self._cancelled:
+                    logger.info("Pipeline cancelled")
+                    await self.state.cancel_run()
+                    break
+                
+                if stage.value in completed_steps:
+                    logger.info(f"Skipping completed step: {stage.value}")
+                    continue
+                
+                await self._pause_event.wait()
+                
+                if not self._check_dependencies(stage):
+                    logger.warning(f"Skipping {stage.value}: dependencies not met")
+                    await self.state.skip_step(stage.value, "Dependencies not met")
+                    continue
+                
+                try:
+                    await self._execute_stage(stage, target)
+                except Exception as e:
+                    logger.error(f"Stage {stage.value} failed: {e}")
+                    await self.state.fail_step(stage.value, str(e))
+                    
+                    if self.config.stop_on_failure:
+                        await self.state.fail_run(str(e))
+                        break
+            
+            if self.state.metadata.state.value == "running":
+                await self.state.complete_run()
+            
+            logger.info(f"Pipeline completed: {self.state.metadata.total_findings} findings")
+            
+        except Exception as e:
+            logger.exception(f"Pipeline failed: {e}")
+            await self.state.fail_run(str(e))
+            raise PipelineError(f"Pipeline execution failed: {e}") from e
+        
+        finally:
+            self._running = False
+            await self.scheduler.stop()
+        
+        return self.state

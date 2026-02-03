@@ -129,6 +129,12 @@ def run(
         "-v",
         help="Verbose output",
     ),
+    resume: Optional[str] = typer.Option(
+        None,
+        "--resume",
+        "-r",
+        help="Resume a previous run by ID",
+    ),
 ) -> None:
     """
     Execute a scan run from the command line.
@@ -144,7 +150,8 @@ def run(
             f"[bold cyan]GaleHunTUI Scan[/bold cyan]\n\n"
             f"Target: [yellow]{target}[/yellow]\n"
             f"Profile: [green]{profile}[/green]\n"
-            f"Mode: [magenta]{mode.value}[/magenta]",
+            f"Mode: [magenta]{mode.value}[/magenta]"
+            + (f"\nResume: [blue]{resume}[/blue]" if resume else ""),
             title="Scan Configuration",
         ))
         

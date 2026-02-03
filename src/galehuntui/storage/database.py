@@ -11,7 +11,8 @@ from pathlib import Path
 from typing import Optional
 
 from galehuntui.core.exceptions import StorageError
-from galehuntui.core.models import Finding, RunMetadata, Severity, Confidence, RunState
+from galehuntui.core.models import Finding, PipelineStep, RunMetadata, Severity, Confidence, RunState
+from galehuntui.core.constants import StepStatus
 
 
 class Database:
@@ -49,82 +50,26 @@ class Database:
         return self._conn
     
     def init_db(self) -> None:
-        """Initialize database schema.
+        """Initialize database schema using migrations.
         
-        Creates runs and findings tables if they don't exist.
+        Runs all pending migrations to bring the database up to date.
         
         Raises:
-            StorageError: If schema creation fails
+            StorageError: If migration fails
         """
         try:
+            from galehuntui.storage.migrations.runner import MigrationRunner
+            from galehuntui.storage.migrations import m001_initial_schema, m002_add_steps_table
+            
             conn = self._get_connection()
-            cursor = conn.cursor()
             
-            # Runs table
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS runs (
-                    id TEXT PRIMARY KEY,
-                    target TEXT NOT NULL,
-                    profile TEXT NOT NULL,
-                    engagement_mode TEXT NOT NULL,
-                    state TEXT NOT NULL,
-                    created_at TEXT NOT NULL,
-                    started_at TEXT,
-                    completed_at TEXT,
-                    total_steps INTEGER DEFAULT 0,
-                    completed_steps INTEGER DEFAULT 0,
-                    failed_steps INTEGER DEFAULT 0,
-                    total_findings INTEGER DEFAULT 0,
-                    findings_by_severity TEXT DEFAULT '{}',
-                    run_dir TEXT NOT NULL,
-                    artifacts_dir TEXT NOT NULL,
-                    evidence_dir TEXT NOT NULL,
-                    reports_dir TEXT NOT NULL
-                )
-            """)
+            runner = MigrationRunner(self.db_path)
+            runner.register(1, "initial_schema", m001_initial_schema.up, m001_initial_schema.down)
+            runner.register(2, "add_steps_table", m002_add_steps_table.up, m002_add_steps_table.down)
             
-            # Findings table
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS findings (
-                    id TEXT PRIMARY KEY,
-                    run_id TEXT NOT NULL,
-                    type TEXT NOT NULL,
-                    severity TEXT NOT NULL,
-                    confidence TEXT NOT NULL,
-                    host TEXT NOT NULL,
-                    url TEXT NOT NULL,
-                    parameter TEXT,
-                    evidence_paths TEXT NOT NULL,
-                    tool TEXT NOT NULL,
-                    timestamp TEXT NOT NULL,
-                    title TEXT NOT NULL,
-                    description TEXT,
-                    reproduction_steps TEXT DEFAULT '[]',
-                    remediation TEXT,
-                    refs TEXT DEFAULT '[]',
-                    FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE
-                )
-            """)
+            runner.migrate(conn)
             
-            # Create indexes for common queries
-            cursor.execute("""
-                CREATE INDEX IF NOT EXISTS idx_findings_run_id 
-                ON findings(run_id)
-            """)
-            
-            cursor.execute("""
-                CREATE INDEX IF NOT EXISTS idx_findings_severity 
-                ON findings(severity)
-            """)
-            
-            cursor.execute("""
-                CREATE INDEX IF NOT EXISTS idx_runs_state 
-                ON runs(state)
-            """)
-            
-            conn.commit()
-            
-        except sqlite3.Error as e:
+        except Exception as e:
             raise StorageError(f"Failed to initialize database: {e}") from e
     
     def save_run(self, run: RunMetadata) -> None:
@@ -471,3 +416,93 @@ class Database:
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Context manager exit."""
         self.close()
+    
+    def save_step(self, run_id: str, step: PipelineStep) -> None:
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                INSERT INTO run_steps (
+                    run_id, step_name, status, started_at, completed_at,
+                    duration, output_path, findings_count, exit_code, error_message
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(run_id, step_name) DO UPDATE SET
+                    status = excluded.status,
+                    completed_at = excluded.completed_at,
+                    duration = excluded.duration,
+                    output_path = excluded.output_path,
+                    findings_count = excluded.findings_count,
+                    exit_code = excluded.exit_code,
+                    error_message = excluded.error_message
+            """, (
+                run_id,
+                step.name,
+                step.status.value,
+                step.started_at.isoformat() if step.started_at else None,
+                step.completed_at.isoformat() if step.completed_at else None,
+                step.duration,
+                str(step.output_path) if step.output_path else None,
+                step.findings_count,
+                step.exit_code,
+                step.error_message,
+            ))
+            conn.commit()
+            
+        except sqlite3.Error as e:
+            raise StorageError(f"Failed to save step {step.name} for run {run_id}: {e}") from e
+    
+    def get_steps(self, run_id: str) -> list[PipelineStep]:
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+            
+            cursor.execute("SELECT * FROM run_steps WHERE run_id = ?", (run_id,))
+            rows = cursor.fetchall()
+            
+            steps = []
+            for row in rows:
+                steps.append(PipelineStep(
+                    name=row["step_name"],
+                    status=StepStatus(row["status"]),
+                    started_at=datetime.fromisoformat(row["started_at"]) if row["started_at"] else None,
+                    completed_at=datetime.fromisoformat(row["completed_at"]) if row["completed_at"] else None,
+                    duration=row["duration"],
+                    output_path=Path(row["output_path"]) if row["output_path"] else None,
+                    findings_count=row["findings_count"] or 0,
+                    exit_code=row["exit_code"],
+                    error_message=row["error_message"],
+                ))
+            
+            return steps
+            
+        except (sqlite3.Error, ValueError) as e:
+            raise StorageError(f"Failed to get steps for run {run_id}: {e}") from e
+    
+    def get_completed_step_names(self, run_id: str) -> set[str]:
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+            
+            cursor.execute(
+                "SELECT step_name FROM run_steps WHERE run_id = ? AND status = ?",
+                (run_id, StepStatus.COMPLETED.value),
+            )
+            return {row["step_name"] for row in cursor.fetchall()}
+            
+        except sqlite3.Error as e:
+            raise StorageError(f"Failed to get completed steps for run {run_id}: {e}") from e
+    
+    def delete_steps(self, run_id: str) -> bool:
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+            
+            cursor.execute("DELETE FROM run_steps WHERE run_id = ?", (run_id,))
+            deleted = cursor.rowcount > 0
+            
+            conn.commit()
+            return deleted
+            
+        except sqlite3.Error as e:
+            raise StorageError(f"Failed to delete steps for run {run_id}: {e}") from e
