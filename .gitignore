@@ -158,3 +158,6 @@ app.log
 audit/*.log
 runs/
 .sisyphus/
+galehuntui.db
+galehuntui.db-shm
+galehuntui.db-wal
