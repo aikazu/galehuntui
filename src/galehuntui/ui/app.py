@@ -19,7 +19,7 @@ from galehuntui.ui.screens.finding_detail import FindingDetailScreen
 from galehuntui.ui.screens.help import HelpScreen
 from galehuntui.ui.screens.setup import SetupWizardScreen
 
-from galehuntui.core.config import get_data_dir
+from galehuntui.core.config import get_data_dir, get_user_config_path
 from galehuntui.storage.database import Database
 from galehuntui.ui.themes import GALEHUNT_THEMES
 
@@ -94,7 +94,7 @@ class GaleHunTUIApp(App):
         DEFAULT_THEME = "phantom"
         
         try:
-            config_path = Path.home() / ".config" / "galehuntui" / "config.yaml"
+            config_path = get_user_config_path()
             
             if not config_path.exists():
                 return DEFAULT_THEME

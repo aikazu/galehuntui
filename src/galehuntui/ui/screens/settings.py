@@ -22,9 +22,9 @@ from textual.widgets import (
 )
 
 from galehuntui.ui.themes import GALEHUNT_THEMES
+from galehuntui.core.config import get_user_config_path, get_logs_dir
 
-# We use standard XDG config path for user settings
-# ~/.config/galehuntui/config.yaml
+# We use workspace-isolated path for user settings
 
 
 class SettingsScreen(Screen):
@@ -210,7 +210,8 @@ class SettingsScreen(Screen):
                             
                         with Vertical(classes="setting-item"):
                             yield Label("Log File Path", classes="setting-label")
-                            yield Input(value="~/.local/share/galehuntui/logs/app.log", id="input-log-path")
+                            default_log_path = get_logs_dir() / "app.log"
+                            yield Input(value=str(default_log_path), id="input-log-path")
 
                     # About
                     with VerticalScroll(id="about", classes="settings-container"):
@@ -230,7 +231,7 @@ class SettingsScreen(Screen):
 
     def get_config_path(self) -> Path:
         """Get path to config file."""
-        return Path.home() / ".config" / "galehuntui" / "config.yaml"
+        return get_user_config_path()
 
     def load_settings(self) -> None:
         """Load settings from config file."""
@@ -272,7 +273,8 @@ class SettingsScreen(Screen):
                 self.query_one("#select-log-level", Select).value = level
                 
             self.query_one("#chk-file-logging", Checkbox).value = logging.get("file_logging", True)
-            self.query_one("#input-log-path", Input).value = logging.get("file_path", "~/.local/share/galehuntui/logs/app.log")
+            default_log_path = get_logs_dir() / "app.log"
+            self.query_one("#input-log-path", Input).value = logging.get("file_path", str(default_log_path))
 
         except Exception as e:
             self.notify(f"Failed to load settings: {e}", severity="error")
