@@ -463,39 +463,39 @@ class PipelineOrchestrator:
         all_findings: list[Finding] = []
         output_path: Optional[Path] = None
         start_time = datetime.now()
+        errors: list[str] = []
         
         for tool_name in tools:
             adapter = self.adapters.get(tool_name)
             
             if adapter is None:
-                logger.warning(f"Adapter not found for tool: {tool_name}")
+                error_msg = f"Adapter not found for tool: {tool_name}"
+                logger.warning(error_msg)
+                errors.append(error_msg)
                 continue
             
             if not await adapter.check_available():
-                logger.warning(f"Tool not available: {tool_name}")
+                error_msg = f"Tool not available: {tool_name}"
+                logger.warning(error_msg)
+                errors.append(error_msg)
                 continue
             
             try:
-                # Build tool config
                 tool_config = ToolConfig(
                     name=tool_name,
                     timeout=self.config.timeout,
                     rate_limit=self.config.rate_limit_per_host,
                 )
                 
-                # Execute tool
                 result = await adapter.run(inputs, tool_config)
                 
                 if result.success:
-                    # Parse output
                     outputs = self._parse_tool_output(result.stdout, tool_name)
                     all_outputs.extend(outputs)
                     
-                    # Parse findings
                     findings = adapter.parse_output(result.stdout)
                     all_findings.extend(findings)
                     
-                    # Save output path
                     if output_path is None:
                         output_path = result.output_path
                     
@@ -504,28 +504,37 @@ class PipelineOrchestrator:
                         f"{len(outputs)} outputs, {len(findings)} findings"
                     )
                 else:
-                    logger.warning(
-                        f"Tool {tool_name} failed: exit code {result.exit_code}"
-                    )
+                    error_msg = f"Tool {tool_name} failed: exit={result.exit_code}"
+                    if result.stderr:
+                        error_msg += f" stderr={result.stderr[:200]}"
+                    logger.warning(error_msg)
+                    errors.append(error_msg)
                     
             except ToolTimeoutError:
-                logger.warning(f"Tool {tool_name} timed out")
+                error_msg = f"Tool {tool_name} timed out"
+                logger.warning(error_msg)
+                errors.append(error_msg)
             except ToolExecutionError as e:
-                logger.error(f"Tool {tool_name} execution error: {e}")
+                error_msg = f"Tool {tool_name} execution error: {e}"
+                logger.error(error_msg)
+                errors.append(error_msg)
             except Exception as e:
-                logger.exception(f"Unexpected error running {tool_name}: {e}")
+                error_msg = f"Unexpected error running {tool_name}: {e}"
+                logger.exception(error_msg)
+                errors.append(error_msg)
         
         duration = (datetime.now() - start_time).total_seconds()
         
-        # Determine final status
         if all_outputs or all_findings:
             status = StepStatus.COMPLETED
+            error = None
         elif not tools:
             status = StepStatus.SKIPPED
+            error = "No tools configured"
         else:
             status = StepStatus.FAILED
+            error = "; ".join(errors) if errors else "All tools failed without output"
         
-        # Save combined output
         if all_outputs and output_path:
             combined_path = self.state.get_artifact_path(stage, "combined_output.txt")
             combined_path.write_text("\n".join(all_outputs))
@@ -538,6 +547,7 @@ class PipelineOrchestrator:
             output_path=output_path,
             findings=all_findings,
             duration=duration,
+            error=error,
         )
     
     async def _execute_classification_stage(

@@ -121,6 +121,7 @@ class RunDetailScreen(Screen):
             
             self._update_progress(run)
             self._log_initial_state(run)
+            self._log_step_errors(steps)
 
             # Start polling if active
             if run.state in (RunState.RUNNING, RunState.PENDING, RunState.PAUSED):
@@ -328,6 +329,25 @@ class RunDetailScreen(Screen):
         log.write(f"[green]INFO[/] Monitor attached to run {run.id}")
         log.write(f"[blue]INFO[/] Target: {run.target}")
         log.write(f"[blue]INFO[/] Profile: {run.profile}")
+        log.write(f"[blue]INFO[/] State: {run.state.name}")
+        
+        if run.state == RunState.FAILED:
+            log.write(f"[red]ERROR[/] Run failed")
+        elif run.state == RunState.COMPLETED:
+            log.write(f"[green]SUCCESS[/] Run completed with {run.total_findings} findings")
+        elif run.state == RunState.RUNNING:
+            log.write(f"[blue]INFO[/] Run is currently in progress...")
+        elif run.state == RunState.PENDING:
+            log.write(f"[yellow]INFO[/] Run is pending start...")
+
+    def _log_step_errors(self, steps: list[PipelineStep]) -> None:
+        """Log any step errors to the live log."""
+        log = self.query_one("#run-log", RichLog)
+        for step in steps:
+            if step.status == StepStatus.FAILED and step.error_message:
+                log.write(f"[red]FAILED[/] Step [bold]{step.name}[/]: {step.error_message}")
+            elif step.status == StepStatus.SKIPPED and step.error_message:
+                log.write(f"[yellow]SKIPPED[/] Step [bold]{step.name}[/]: {step.error_message}")
         
     def action_toggle_pause(self) -> None:
         """Pause or resume the run."""
