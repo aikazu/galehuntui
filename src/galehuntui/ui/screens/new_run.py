@@ -271,12 +271,10 @@ class NewRunScreen(Screen):
                 state=RunState.PENDING,
                 created_at=now,
                 started_at=now,
-                updated_at=now,
                 run_dir=run_dir,
                 artifacts_dir=run_dir / "artifacts",
                 evidence_dir=run_dir / "evidence",
                 reports_dir=run_dir / "reports",
-                scope_config=scope_config,
             )
             
             # Save initial state
