@@ -40,6 +40,7 @@ class RunDetailScreen(Screen):
         ("c", "cancel_run", "Cancel Run"),
         ("l", "focus_logs", "Logs"),
         ("s", "focus_subdomains", "Subdomains"),
+        ("d", "focus_livedomain", "Live Domain"),
         ("f", "focus_findings", "Findings"),
         ("i", "focus_info", "Info"),
     ]
@@ -273,13 +274,15 @@ class RunDetailScreen(Screen):
                         yield Button("Cancel", variant="error", id="btn-cancel")
                         yield Button("Export", variant="primary", id="btn-export")
 
-                # Right: Logs/Findings with 4 tabs
+                # Right: Logs/Findings with 5 tabs
                 with Container(classes="content-panel"):
                     with TabbedContent():
                         with TabPane("Live Logs", id="tab-logs"):
                             yield RichLog(highlight=True, markup=True, id="run-log")
                         with TabPane("Subdomain (0)", id="tab-subdomain"):
                             yield DataTable(id="subdomain-table")
+                        with TabPane("Live Domain (0)", id="tab-livedomain"):
+                            yield DataTable(id="livedomain-table")
                         with TabPane("Findings (0)", id="tab-findings"):
                             yield DataTable(id="findings-table")
                         with TabPane("Info (0)", id="tab-info"):
@@ -302,12 +305,17 @@ class RunDetailScreen(Screen):
         findings_table.add_columns("Severity", "Type", "Host", "Tool")
         findings_table.cursor_type = "row"
 
-        # Setup Subdomain Table
+        # Setup Subdomain Table (subdomain + dnsx results)
         subdomain_table = self.query_one("#subdomain-table", DataTable)
         subdomain_table.add_columns("Host", "Tool")
         subdomain_table.cursor_type = "row"
 
-        # Setup Info Table (INFO severity items, excluding subdomains)
+        # Setup Live Domain Table (httpx results)
+        livedomain_table = self.query_one("#livedomain-table", DataTable)
+        livedomain_table.add_columns("Host", "Tool")
+        livedomain_table.cursor_type = "row"
+
+        # Setup Info Table (other INFO severity items)
         info_table = self.query_one("#info-table", DataTable)
         info_table.add_columns("Type", "Host", "Tool")
         info_table.cursor_type = "row"
@@ -506,9 +514,10 @@ class RunDetailScreen(Screen):
                 table.add_row(display, key=row_key)
 
     def _update_findings(self, findings: list[Finding]) -> None:
-        """Update findings tables - categorized into Subdomain, Findings, and Info tabs."""
+        """Update findings tables - categorized into Subdomain, Live Domain, Findings, and Info tabs."""
         findings_table = self.query_one("#findings-table", DataTable)
         subdomain_table = self.query_one("#subdomain-table", DataTable)
+        livedomain_table = self.query_one("#livedomain-table", DataTable)
         info_table = self.query_one("#info-table", DataTable)
         log = self.query_one("#run-log", RichLog)
         
@@ -521,30 +530,50 @@ class RunDetailScreen(Screen):
         }
 
         subdomain_count = 0
+        livedomain_count = 0
         findings_count = 0
         info_count = 0
 
         for finding in findings:
-            if finding.id not in self._seen_finding_ids:
-                self._seen_finding_ids.add(finding.id)
-                
-                is_subdomain = finding.type.lower() == "subdomain"
-                is_info = finding.severity == Severity.INFO
-                
-                if is_subdomain:
+            ftype = finding.type.lower()
+            tool = finding.tool.lower() if finding.tool else ""
+            
+            is_subdomain = ftype in ("subdomain", "dns_record") or tool in ("subfinder", "dnsx")
+            is_livedomain = ftype == "http_probe" or tool == "httpx"
+            is_info = finding.severity == Severity.INFO
+            
+            if is_subdomain:
+                subdomain_count += 1
+                if finding.id not in self._seen_finding_ids:
+                    self._seen_finding_ids.add(finding.id)
                     subdomain_table.add_row(
                         finding.host[:60],
                         finding.tool,
                         key=finding.id
                     )
-                elif is_info:
+            elif is_livedomain:
+                livedomain_count += 1
+                if finding.id not in self._seen_finding_ids:
+                    self._seen_finding_ids.add(finding.id)
+                    livedomain_table.add_row(
+                        finding.host[:60],
+                        finding.tool,
+                        key=finding.id
+                    )
+            elif is_info:
+                info_count += 1
+                if finding.id not in self._seen_finding_ids:
+                    self._seen_finding_ids.add(finding.id)
                     info_table.add_row(
                         finding.type[:30],
                         finding.host[:50],
                         finding.tool,
                         key=finding.id
                     )
-                else:
+            else:
+                findings_count += 1
+                if finding.id not in self._seen_finding_ids:
+                    self._seen_finding_ids.add(finding.id)
                     color = colors.get(finding.severity, "white")
                     sev = f"[{color}]{finding.severity.value.upper()}[/]"
                     
@@ -559,21 +588,10 @@ class RunDetailScreen(Screen):
                     if finding.severity in (Severity.CRITICAL, Severity.HIGH):
                         log.write(f"[{color}]⚠[/] {finding.severity.value.upper()}: {finding.type} @ {finding.host}")
 
-        for finding in findings:
-            is_subdomain = finding.type.lower() == "subdomain"
-            is_info = finding.severity == Severity.INFO and not is_subdomain
-            is_finding = not is_subdomain and not is_info
-            
-            if is_subdomain:
-                subdomain_count += 1
-            elif is_info:
-                info_count += 1
-            elif is_finding:
-                findings_count += 1
-
         try:
             from textual.widgets import TabPane
             self.query_one("#tab-subdomain", TabPane).update(f"Subdomain ({subdomain_count})")
+            self.query_one("#tab-livedomain", TabPane).update(f"Live Domain ({livedomain_count})")
             self.query_one("#tab-findings", TabPane).update(f"Findings ({findings_count})")
             self.query_one("#tab-info", TabPane).update(f"Info ({info_count})")
         except Exception:
@@ -599,6 +617,9 @@ class RunDetailScreen(Screen):
 
     def action_focus_subdomains(self) -> None:
         self.query_one("#subdomain-table").focus()
+
+    def action_focus_livedomain(self) -> None:
+        self.query_one("#livedomain-table").focus()
 
     def action_focus_findings(self) -> None:
         self.query_one("#findings-table").focus()
