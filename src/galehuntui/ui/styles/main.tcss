@@ -1,26 +1,14 @@
 /* Global Variables & Theme */
-$surface: #0f111a;
-$surface-light: #1a1c29;
-$surface-lighter: #26293b;
-$primary: #00f2ea;
-$secondary: #ff0055;
-$accent: #7000ff;
-$success: #00ff9d;
-$warning: #ffb700;
-$error: #ff3333;
-$text: #e2e8f0;
-$text-muted: #64748b;
-$border: #2e344d;
 
 /* Base Screen */
 Screen {
-    background: $surface;
+    background: $background;
     color: $text;
 }
 
 /* Header */
 Header {
-    background: $surface-light;
+    background: $surface;
     color: $primary;
     height: 3;
     content-align: center middle;
@@ -37,7 +25,7 @@ HeaderIcon {
 
 /* Footer */
 Footer {
-    background: $surface-light;
+    background: $surface;
     color: $text-muted;
     border-top: solid $border;
 }
@@ -53,7 +41,7 @@ Footer > .footer-key.-active {
 
 /* Buttons */
 Button {
-    background: $surface-lighter;
+    background: $panel;
     color: $primary;
     border: none;
     height: 3;
@@ -63,8 +51,8 @@ Button {
 }
 
 Button:hover {
-    background: $surface-lighter;
-    color: $surface;
+    background: $panel;
+    color: $background;
     tint: $primary 80%;
 }
 
@@ -74,12 +62,12 @@ Button:focus {
 
 Button.primary {
     background: $primary;
-    color: $surface;
+    color: $background;
 }
 
 Button.primary:hover {
     background: $primary;
-    tint: $surface 20%;
+    tint: $background 20%;
 }
 
 Button.error {
@@ -95,7 +83,7 @@ Button.error:hover {
 
 /* Inputs */
 Input {
-    background: $surface-light;
+    background: $surface;
     border: solid $border;
     color: $text;
     padding: 0 1;
@@ -111,28 +99,28 @@ Input > .input--placeholder {
 
 /* DataTable */
 DataTable {
-    background: $surface;
+    background: $background;
     border: solid $border;
 }
 
 DataTable > .datatable--header {
-    background: $surface-light;
+    background: $surface;
     color: $primary;
     text-style: bold;
 }
 
 DataTable > .datatable--cursor {
-    background: $surface-lighter;
+    background: $panel;
     color: $text;
 }
 
 DataTable > .datatable--hover {
-    background: $surface-lighter 20%;
+    background: $panel 20%;
 }
 
 /* Scrollbar */
 ScrollBar {
-    background: $surface;
+    background: $background;
     width: 1;
 }
 
@@ -159,7 +147,7 @@ ScrollBar > .scrollbar--thumb {
     height: 3;
     margin-bottom: 1;
     align: center middle;
-    background: $surface-light;
+    background: $surface;
     border: solid $border;
 }
 
@@ -169,7 +157,7 @@ ScrollBar > .scrollbar--thumb {
 }
 
 .status-badge {
-    background: $surface-lighter;
+    background: $panel;
     color: $text;
     padding: 0 2;
     text-style: bold;
@@ -198,7 +186,7 @@ ScrollBar > .scrollbar--thumb {
 #run-log {
     height: 100%;
     border: solid $border;
-    background: $surface-light;
+    background: $surface;
 }
 
 #findings-table {
@@ -218,7 +206,7 @@ ScrollBar > .scrollbar--thumb {
 
 #core_tools_table, #optional_tools_table {
     border: solid $border;
-    background: $surface;
+    background: $background;
 }
 
 .controls-bar Button {
@@ -239,7 +227,7 @@ ScrollBar > .scrollbar--thumb {
     width: 30%;
     height: 100%;
     border-right: solid $border;
-    background: $surface-light;
+    background: $surface;
     padding: 1;
 }
 
@@ -273,14 +261,14 @@ ScrollBar > .scrollbar--thumb {
 #profiles-list {
     height: 1fr;
     border: solid $border;
-    background: $surface;
+    background: $background;
     margin-bottom: 1;
 }
 
 #list-steps {
     height: 1fr;
     border: solid $border;
-    background: $surface;
+    background: $background;
     margin-bottom: 1;
 }
 
@@ -295,7 +283,7 @@ LogViewWidget {
 
 LogViewWidget .log-toolbar {
     height: 3;
-    background: $surface-light;
+    background: $surface;
     padding: 0 1;
     border-bottom: solid $border;
 }
@@ -319,7 +307,7 @@ LogViewWidget .log-toolbar Static {
 LogViewWidget RichLog {
     height: 1fr;
     border: solid $border;
-    background: $surface;
+    background: $background;
 }
 
 /* PipelineProgressWidget */
@@ -327,12 +315,12 @@ PipelineProgressWidget {
     height: auto;
     min-height: 10;
     border: solid $border;
-    background: $surface;
+    background: $background;
 }
 
 PipelineProgressWidget .progress-header {
     height: 3;
-    background: $surface-light;
+    background: $surface;
     padding: 0 1;
     border-bottom: solid $border;
 }
@@ -359,7 +347,7 @@ PipelineProgressWidget .progress-bar-container {
 
 PipelineProgressWidget .stages-header {
     height: 1;
-    background: $surface-light;
+    background: $surface;
     padding: 0 1;
 }
 
@@ -379,11 +367,11 @@ StageRow {
 }
 
 StageRow:hover {
-    background: $surface-lighter;
+    background: $panel;
 }
 
 StageRow.running {
-    background: $surface-light;
+    background: $surface;
 }
 
 StageRow.completed .stage-name {
@@ -405,7 +393,7 @@ FindingsTableWidget {
 
 FindingsTableWidget .findings-toolbar {
     height: 3;
-    background: $surface-light;
+    background: $surface;
     padding: 0 1;
     border-bottom: solid $border;
 }
