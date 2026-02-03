@@ -186,9 +186,9 @@ class HomeScreen(Screen):
 
             with Container(id="stats-grid"):
                 yield self._make_stat_card("Total Runs", "-", value_id="stat_total_runs")
-                yield self._make_stat_card("Critical Findings", "-", value_id="stat_critical_findings")
-                yield self._make_stat_card("Tools Installed", "-", value_id="stat_tools_installed")
-                yield self._make_stat_card("Last Scan", "-", value_id="stat_last_scan")
+                yield self._make_stat_card("Subdomains", "-", value_id="stat_subdomains")
+                yield self._make_stat_card("Live Hosts", "-", value_id="stat_live_hosts")
+                yield self._make_stat_card("Findings", "-", value_id="stat_findings")
 
             # Main Content Area
             # Left: Recent Runs
@@ -248,10 +248,38 @@ class HomeScreen(Screen):
         except Exception:
             return 0
 
+    def _categorize_findings(self, findings: list) -> dict:
+        """Categorize findings into subdomain, live_domain, findings, and info."""
+        counts = {
+            "subdomain": 0,
+            "live_domain": 0,
+            "findings": 0,
+            "info": 0,
+        }
+        
+        for finding in findings:
+            ftype = finding.type.lower() if finding.type else ""
+            tool = finding.tool.lower() if finding.tool else ""
+            
+            is_subdomain = ftype in ("subdomain", "dns_record") or tool in ("subfinder", "dnsx")
+            is_livedomain = ftype == "http_probe" or tool == "httpx"
+            is_info = finding.severity == Severity.INFO
+            
+            if is_subdomain:
+                counts["subdomain"] += 1
+            elif is_livedomain:
+                counts["live_domain"] += 1
+            elif is_info:
+                counts["info"] += 1
+            else:
+                counts["findings"] += 1
+        
+        return counts
+
     def on_mount(self) -> None:
         """Initialize data when screen is mounted."""
         table = self.query_one("#recent_runs_table", DataTable)
-        table.add_columns("ID", "Target", "Profile", "Status", "Subs/DNS", "Findings", "Date")
+        table.add_columns("ID", "Target", "Profile", "Status", "Subdomain", "Live", "Findings", "Date")
         
         # Load real data in background
         _ = self._load_dashboard_data()
@@ -290,105 +318,65 @@ class HomeScreen(Screen):
 
             runs = []
             total_runs_count = 0
-            critical_findings_count = 0
+            total_subdomains = 0
+            total_live_hosts = 0
+            total_findings = 0
             
             with Database(db_path) as db:
                 db.init_db()
-                # Get recent runs
                 runs = db.list_runs(limit=10)
                 
-                # Get all runs count (for stats) - naive approach, list_runs with higher limit
-                # Ideally DB should have count method, but we work with what we have
                 all_runs = db.list_runs(limit=1000)
                 total_runs_count = len(all_runs)
                 
-                # Calculate critical findings across all runs
                 for run in all_runs:
-                    if Severity.CRITICAL.value in run.findings_by_severity:
-                        critical_findings_count += run.findings_by_severity[Severity.CRITICAL.value]
+                    findings = db.get_findings_for_run(run.id)
+                    counts = self._categorize_findings(findings)
+                    total_subdomains += counts["subdomain"]
+                    total_live_hosts += counts["live_domain"]
+                    total_findings += counts["findings"]
 
-            # Update Stats
             self.query_one("#stat_total_runs", Label).update(str(total_runs_count))
-            self.query_one("#stat_critical_findings", Label).update(str(critical_findings_count))
-            
-            # Check Tools
-            installer = ToolInstaller(data_dir / "tools")
-            try:
-                registry = installer.load_registry()
-                all_tools = registry.get("tools", {})
-                installed_tools = sum(1 for t in all_tools if installer.verify_tool(t))
-                total_tools = len(all_tools)
-                self.query_one("#stat_tools_installed", Label).update(f"{installed_tools}/{total_tools}")
-            except Exception as e:
-                self.query_one("#stat_tools_installed", Label).update("Error")
-            
-            # Last Scan Time
-            if runs:
-                last_run = runs[0]
-                time_diff = datetime.now() - last_run.created_at
-                
-                if time_diff.days > 0:
-                    time_str = f"{time_diff.days}d ago"
-                elif time_diff.seconds >= 3600:
-                    time_str = f"{time_diff.seconds // 3600}h ago"
-                elif time_diff.seconds >= 60:
-                    time_str = f"{time_diff.seconds // 60}m ago"
-                else:
-                    time_str = "Just now"
-                    
-                self.query_one("#stat_last_scan", Label).update(time_str)
-            else:
-                self.query_one("#stat_last_scan", Label).update("Never")
+            self.query_one("#stat_subdomains", Label).update(str(total_subdomains))
+            self.query_one("#stat_live_hosts", Label).update(str(total_live_hosts))
+            self.query_one("#stat_findings", Label).update(str(total_findings))
 
             # Update Table
             table = self.query_one("#recent_runs_table", DataTable)
             table.clear()
             
-            for run in runs:
-                # Format Status
-                status = run.state.value.title()
-                
-                # Format Findings Summary
-                findings_summary = []
-                if run.findings_by_severity:
-                    crit = run.findings_by_severity.get(Severity.CRITICAL.value, 0)
-                    high = run.findings_by_severity.get(Severity.HIGH.value, 0)
-                    med = run.findings_by_severity.get(Severity.MEDIUM.value, 0)
+            with Database(db_path) as db:
+                for run in runs:
+                    status = run.state.value.title()
                     
-                    if crit > 0:
-                        findings_summary.append(f"{crit} Crit")
-                    if high > 0:
-                        findings_summary.append(f"{high} High")
-                    if med > 0:
-                        findings_summary.append(f"{med} Med")
-                        
-                    summary_text = ", ".join(findings_summary) if findings_summary else f"{run.total_findings} Issues"
-                else:
-                    summary_text = "0 Issues" if run.total_findings == 0 else f"{run.total_findings} Issues"
-                
-                if not summary_text:
-                    summary_text = "-"
+                    findings = db.get_findings_for_run(run.id)
+                    counts = self._categorize_findings(findings)
+                    
+                    subdomain_count = counts["subdomain"]
+                    live_count = counts["live_domain"]
+                    finding_count = counts["findings"]
+                    
+                    findings_text = str(finding_count)
+                    if finding_count > 0:
+                        crit = sum(1 for f in findings if f.severity == Severity.CRITICAL and f.type.lower() not in ("subdomain", "dns_record", "http_probe") and f.tool.lower() not in ("subfinder", "dnsx", "httpx"))
+                        high = sum(1 for f in findings if f.severity == Severity.HIGH and f.type.lower() not in ("subdomain", "dns_record", "http_probe") and f.tool.lower() not in ("subfinder", "dnsx", "httpx"))
+                        if crit > 0:
+                            findings_text = f"{finding_count} ({crit}C)"
+                        elif high > 0:
+                            findings_text = f"{finding_count} ({high}H)"
 
-                # Get counts using actual PipelineStage names from constants.py
-                subs = self._get_step_output_count(run, "subdomain_enumeration")
-                dns = self._get_step_output_count(run, "dns_resolution")
-                subs_dns_text = f"{subs} / {dns}"
-                if subs == 0 and dns == 0:
-                    subs_dns_text = "-"
-
-                # Format Date
-                date_str = run.created_at.strftime("%Y-%m-%d %H:%M")
-                
-                # Add row
-                table.add_row(
-                    run.id[:8], # Short ID
-                    run.target,
-                    run.profile.title(),
-                    status,
-                    subs_dns_text,
-                    summary_text,
-                    date_str
-                )
+                    date_str = run.created_at.strftime("%Y-%m-%d %H:%M")
+                    
+                    table.add_row(
+                        run.id[:8],
+                        run.target,
+                        run.profile.title(),
+                        status,
+                        str(subdomain_count) if subdomain_count > 0 else "-",
+                        str(live_count) if live_count > 0 else "-",
+                        findings_text if finding_count > 0 else "-",
+                        date_str
+                    )
 
         except Exception as e:
             self.notify(f"Failed to load dashboard data: {e}", severity="error")
