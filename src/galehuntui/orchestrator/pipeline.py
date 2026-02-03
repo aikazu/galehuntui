@@ -16,6 +16,7 @@ if TYPE_CHECKING:
     from galehuntui.storage.database import Database
 
 from galehuntui.core.constants import (
+    AuditEventType,
     ClassificationGroup,
     EngagementMode,
     PipelineStage,
@@ -219,6 +220,17 @@ class PipelineOrchestrator:
             
             # Mark run as started
             await self.state.start_run()
+            
+            audit_logger = self.state.get_audit_logger()
+            if audit_logger:
+                audit_logger.log_event(
+                    AuditEventType.MODE_CHANGE,
+                    {
+                        "mode": self.config.engagement_mode.value,
+                        "rate_limit_global": self.config.rate_limit_global,
+                        "rate_limit_per_host": self.config.rate_limit_per_host,
+                    },
+                )
             
             logger.info(f"Starting pipeline for target: {target}")
             
@@ -464,6 +476,7 @@ class PipelineOrchestrator:
         output_path: Optional[Path] = None
         start_time = datetime.now()
         errors: list[str] = []
+        audit_logger = self.state.get_audit_logger()
         
         for tool_name in tools:
             adapter = self.adapters.get(tool_name)
@@ -487,6 +500,16 @@ class PipelineOrchestrator:
                     rate_limit=self.config.rate_limit_per_host,
                 )
                 
+                if audit_logger:
+                    audit_logger.log_event(
+                        AuditEventType.TOOL_START,
+                        {
+                            "tool": tool_name,
+                            "stage": stage.value,
+                            "input_count": len(inputs),
+                        },
+                    )
+                
                 result = await adapter.run(inputs, tool_config)
                 
                 if result.success:
@@ -499,6 +522,19 @@ class PipelineOrchestrator:
                     if output_path is None:
                         output_path = result.output_path
                     
+                    if audit_logger:
+                        audit_logger.log_event(
+                            AuditEventType.TOOL_FINISH,
+                            {
+                                "tool": tool_name,
+                                "stage": stage.value,
+                                "success": True,
+                                "finding_count": len(findings),
+                                "output_count": len(outputs),
+                                "duration": result.duration,
+                            },
+                        )
+                    
                     logger.info(
                         f"Tool {tool_name} completed: "
                         f"{len(outputs)} outputs, {len(findings)} findings"
@@ -507,6 +543,20 @@ class PipelineOrchestrator:
                     error_msg = f"Tool {tool_name} failed: exit={result.exit_code}"
                     if result.stderr:
                         error_msg += f" stderr={result.stderr[:200]}"
+                    
+                    if audit_logger:
+                        audit_logger.log_event(
+                            AuditEventType.TOOL_FINISH,
+                            {
+                                "tool": tool_name,
+                                "stage": stage.value,
+                                "success": False,
+                                "finding_count": 0,
+                                "exit_code": result.exit_code,
+                                "error": error_msg,
+                            },
+                        )
+                    
                     logger.warning(error_msg)
                     errors.append(error_msg)
                     

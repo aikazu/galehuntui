@@ -14,7 +14,8 @@ from uuid import uuid4
 if TYPE_CHECKING:
     from galehuntui.storage.database import Database
 
-from galehuntui.core.constants import EngagementMode, PipelineStage, StepStatus
+from galehuntui.core.audit import AuditLogger
+from galehuntui.core.constants import AuditEventType, EngagementMode, PipelineStage, StepStatus
 from galehuntui.core.models import (
     Finding,
     PipelineStep,
@@ -118,6 +119,9 @@ class RunStateManager:
         
         # Lock for thread-safe state updates
         self._lock = asyncio.Lock()
+        
+        # Audit logging
+        self.audit_logger: Optional[AuditLogger] = None
     
     async def initialize(self) -> None:
         """Initialize run directories and state.
@@ -135,6 +139,12 @@ class RunStateManager:
             for stage in PipelineStage:
                 stage_dir = self.artifacts_dir / stage.value
                 stage_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Initialize audit logger
+            self.audit_logger = AuditLogger(
+                run_id=self.run_id,
+                audit_dir=self.run_dir,
+            )
     
     async def start_run(self) -> None:
         """Mark run as started.
@@ -150,6 +160,17 @@ class RunStateManager:
                 self.db.save_run(self.metadata)
             
             await self._notify_state_change(RunState.RUNNING)
+            
+            # Log audit event
+            if self.audit_logger:
+                self.audit_logger.log_event(
+                    AuditEventType.RUN_START,
+                    {
+                        "target": self.config.target,
+                        "profile": self.config.profile,
+                        "mode": self.config.engagement_mode.value,
+                    },
+                )
     
     async def complete_run(self) -> None:
         """Mark run as completed."""
@@ -161,6 +182,23 @@ class RunStateManager:
                 self.db.save_run(self.metadata)
             
             await self._notify_state_change(RunState.COMPLETED)
+            
+            # Log audit event
+            if self.audit_logger:
+                duration = None
+                if self.metadata.started_at and self.metadata.completed_at:
+                    duration = (
+                        self.metadata.completed_at - self.metadata.started_at
+                    ).total_seconds()
+                
+                self.audit_logger.log_event(
+                    AuditEventType.RUN_FINISH,
+                    {
+                        "status": "completed",
+                        "total_findings": self.metadata.total_findings,
+                        "duration": duration,
+                    },
+                )
     
     async def fail_run(self, error: Optional[str] = None) -> None:
         """Mark run as failed.
@@ -176,6 +214,16 @@ class RunStateManager:
                 self.db.save_run(self.metadata)
             
             await self._notify_state_change(RunState.FAILED)
+            
+            # Log audit event
+            if self.audit_logger:
+                self.audit_logger.log_event(
+                    AuditEventType.RUN_FINISH,
+                    {
+                        "status": "failed",
+                        "error": error,
+                    },
+                )
     
     async def cancel_run(self) -> None:
         """Mark run as cancelled."""
@@ -434,6 +482,14 @@ class RunStateManager:
         finding_dir = self.evidence_dir / finding_id
         finding_dir.mkdir(parents=True, exist_ok=True)
         return finding_dir / filename
+    
+    def get_audit_logger(self) -> Optional[AuditLogger]:
+        """Get audit logger for this run.
+        
+        Returns:
+            AuditLogger instance if initialized, None otherwise.
+        """
+        return self.audit_logger
     
     def on_state_change(self, callback: Callable[[RunState], None]) -> None:
         """Register callback for state changes.
