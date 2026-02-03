@@ -1015,6 +1015,7 @@ dev = [
 
 All major roadmap items have been implemented:
 
+### Backend Infrastructure
 - [x] `tools/registry.yaml` - Tool definitions file
 - [x] `tools/deps/manager.py` - Dependency manager
 - [x] `tools/deps/wordlists.py` - Wordlist manager
@@ -1026,6 +1027,23 @@ All major roadmap items have been implemented:
 - [x] Resume capability for long-running scans
 - [x] Webhook notifications (Slack/Discord)
 - [x] Plugin system for community adapters
+
+### TUI Screen Wiring (All screens now use real backends)
+- [x] `home.py` - Real stats from Database, actual run history
+- [x] `new_run.py` - Triggers PipelineOrchestrator via background worker
+- [x] `run_detail.py` - Polls database for real-time progress/findings
+- [x] `deps_manager.py` - Uses real DependencyManager for git operations
+- [x] `settings.py` - Persists config to ~/.config/galehuntui/config.yaml
+- [x] `profiles.py` - Reads/writes profiles.yaml
+- [x] `scope.py` - Scans filesystem for YAML scope files
+- [x] `setup.py` - Real Python/Git/Docker checks, real tool installation
+- [x] `tools_manager.py` - Uses real ToolInstaller
+- [x] `finding_detail.py` - Displays real Finding objects
+- [x] `help.py` - Static content (no backend needed)
+
+### Core Model Enhancements
+- [x] `ScopeConfig.is_in_scope()` - Full URL/pattern validation with fnmatch
+- [x] `get_data_dir()` helper in config.py
 
 ---
 
