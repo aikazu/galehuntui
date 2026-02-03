@@ -21,6 +21,8 @@ from textual.widgets import (
     Static,
 )
 
+from galehuntui.ui.themes import GALEHUNT_THEMES
+
 # We use standard XDG config path for user settings
 # ~/.config/galehuntui/config.yaml
 
@@ -165,8 +167,8 @@ class SettingsScreen(Screen):
                         with Vertical(classes="setting-item"):
                             yield Label("Theme", classes="setting-label")
                             yield Select(
-                                options=[("Dark", "Dark"), ("Light", "Light"), ("System", "System")],
-                                value="Dark",
+                                options=[(name.title(), name) for name in GALEHUNT_THEMES.keys()],
+                                value=self.app.theme,
                                 allow_blank=False,
                                 id="select-theme"
                             )
@@ -251,8 +253,8 @@ class SettingsScreen(Screen):
 
             # Appearance
             appearance = config.get("appearance", {})
-            theme = appearance.get("theme", "Dark")
-            if theme in ["Dark", "Light", "System"]:
+            theme = appearance.get("theme", self.app.theme)
+            if theme in GALEHUNT_THEMES:
                 self.query_one("#select-theme", Select).value = theme
             
             self.query_one("#chk-compact", Checkbox).value = appearance.get("compact", False)
@@ -285,6 +287,12 @@ class SettingsScreen(Screen):
             content_id = item_id.replace("nav-", "")
             if content_id in ["general", "appearance", "performance", "logging", "about"]:
                 switcher.current = content_id
+
+    @on(Select.Changed, "#select-theme")
+    def on_theme_changed(self, event: Select.Changed) -> None:
+        """Apply theme immediately when selected."""
+        if event.value:
+            self.app.theme = event.value
 
     @on(Button.Pressed, "#btn-save")
     def action_save_settings(self) -> None:
