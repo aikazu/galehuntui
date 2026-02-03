@@ -9,13 +9,13 @@ from galehuntui.ui.screens.home import HomeScreen
 from galehuntui.ui.screens.new_run import NewRunScreen
 from galehuntui.ui.screens.run_detail import RunDetailScreen
 from galehuntui.ui.screens.tools_manager import ToolsManagerScreen
-from galehuntui.ui.screens.deps_manager import DependenciesManagerScreen
+from galehuntui.ui.screens.deps_manager import DepsManagerScreen
 from galehuntui.ui.screens.settings import SettingsScreen
 from galehuntui.ui.screens.profiles import ProfilesScreen
 from galehuntui.ui.screens.scope import ScopeScreen
 from galehuntui.ui.screens.finding_detail import FindingDetailScreen
 from galehuntui.ui.screens.help import HelpScreen
-from galehuntui.ui.screens.setup import SetupScreen
+from galehuntui.ui.screens.setup import SetupWizardScreen
 
 # Core components (placeholders for initialization)
 from galehuntui.core.config import Config
@@ -45,13 +45,13 @@ class GaleHunTUIApp(App):
         "new_run": NewRunScreen,
         "run_detail": RunDetailScreen,
         "tools_manager": ToolsManagerScreen,
-        "deps_manager": DependenciesManagerScreen,
+        "deps_manager": DepsManagerScreen,
         "settings": SettingsScreen,
         "profiles": ProfilesScreen,
         "scope": ScopeScreen,
         "finding_detail": FindingDetailScreen,
         "help": HelpScreen,
-        "setup": SetupScreen,
+        "setup": SetupWizardScreen,
     }
 
     def __init__(

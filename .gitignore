@@ -157,5 +157,4 @@ tools/deps/
 app.log
 audit/*.log
 runs/
-IDEA.md
-AGENTS.md
+.sisypus/

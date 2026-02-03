@@ -79,6 +79,12 @@ RATE_LIMITS = {
     }
 }
 
+CONCURRENCY_LIMITS = {
+    EngagementMode.BUG_BOUNTY: {"min": 5, "max": 10},
+    EngagementMode.AUTHORIZED: {"min": 20, "max": 50},
+    EngagementMode.AGGRESSIVE: {"min": 50, "max": 100},
+}
+
 
 # Application-wide defaults
 DEFAULTS = {

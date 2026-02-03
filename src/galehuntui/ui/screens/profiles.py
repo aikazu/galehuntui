@@ -203,8 +203,9 @@ class ProfilesScreen(Screen):
             # but select() works with values if they exist.
             try:
                 steps_list.select(step)
-            except:
-                pass # Ignore invalid steps
+            except (ValueError, KeyError):
+                # Step may not exist in selection list - skip invalid steps
+                continue
 
     def _get_form_data(self) -> Profile:
         """Collect data from form widgets."""

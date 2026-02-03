@@ -39,3 +39,16 @@ class StorageError(GaleHunTUIError):
 
 class ArtifactNotFoundError(StorageError):
     pass
+
+class DatabaseError(StorageError):
+    """Database operation failed."""
+    pass
+
+# Runner errors
+class RunnerError(GaleHunTUIError):
+    """Base exception for runner errors."""
+    pass
+
+class DockerNotAvailableError(RunnerError):
+    """Docker is not available or not running."""
+    pass

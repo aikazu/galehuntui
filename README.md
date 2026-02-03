@@ -66,8 +66,12 @@ Reconnaissance → Vulnerability Scanning → Targeted Injection → Comprehensi
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/galehuntui.git
+git clone https://github.com/aikazu/galehuntui.git
 cd galehuntui
+
+# Create and activate virtual environment (recommended)
+python -m venv .venv
+source .venv/bin/activate
 
 # Install in development mode
 pip install -e .
@@ -75,6 +79,8 @@ pip install -e .
 # Verify installation
 galehuntui --version
 ```
+
+> **Note**: Always use a virtual environment to avoid dependency conflicts with system packages.
 
 ### Install Dependencies
 
@@ -451,8 +457,14 @@ galehuntui/
 
 ```bash
 # Clone and install
-git clone https://github.com/yourusername/galehuntui.git
+git clone https://github.com/aikazu/galehuntui.git
 cd galehuntui
+
+# Create and activate virtual environment (required)
+python -m venv .venv
+source .venv/bin/activate
+
+# Install with dev dependencies
 pip install -e ".[dev]"
 
 # Run linting
@@ -461,6 +473,8 @@ ruff check src/
 # Run type checking
 mypy src/galehuntui/
 ```
+
+> **Important**: Always use a virtual environment for development to ensure consistent dependencies and avoid conflicts with system packages.
 
 ### Code Style
 
