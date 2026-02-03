@@ -341,13 +341,28 @@ class RunDetailScreen(Screen):
             log.write(f"[yellow]INFO[/] Run is pending start...")
 
     def _log_step_errors(self, steps: list[PipelineStep]) -> None:
-        """Log any step errors to the live log."""
+        """Log step status to the live log."""
         log = self.query_one("#run-log", RichLog)
         for step in steps:
-            if step.status == StepStatus.FAILED and step.error_message:
-                log.write(f"[red]FAILED[/] Step [bold]{step.name}[/]: {step.error_message}")
-            elif step.status == StepStatus.SKIPPED and step.error_message:
-                log.write(f"[yellow]SKIPPED[/] Step [bold]{step.name}[/]: {step.error_message}")
+            if step.status == StepStatus.COMPLETED:
+                duration = f"{step.duration:.1f}s" if step.duration else "--"
+                log.write(f"[green]COMPLETED[/] Step [bold]{step.name}[/] ({duration}) - {step.findings_count} items")
+                if step.output_path and step.output_path.exists():
+                    try:
+                        content = step.output_path.read_text()
+                        lines = content.strip().split('\n')[:5]
+                        for line in lines:
+                            log.write(f"  [dim]{line[:80]}[/]")
+                        if len(content.strip().split('\n')) > 5:
+                            log.write(f"  [dim]... and more[/]")
+                    except Exception:
+                        pass
+            elif step.status == StepStatus.FAILED:
+                log.write(f"[red]FAILED[/] Step [bold]{step.name}[/]: {step.error_message or 'Unknown error'}")
+            elif step.status == StepStatus.SKIPPED:
+                log.write(f"[yellow]SKIPPED[/] Step [bold]{step.name}[/]: {step.error_message or 'Dependencies not met'}")
+            elif step.status == StepStatus.RUNNING:
+                log.write(f"[blue]RUNNING[/] Step [bold]{step.name}[/]...")
         
     def action_toggle_pause(self) -> None:
         """Pause or resume the run."""

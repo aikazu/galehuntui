@@ -338,10 +338,17 @@ class RunStateManager:
         async with self._lock:
             self._stage_results[stage] = result
             
-            # Add findings to global list
+            # Add findings to global list and persist to database
             for finding in result.findings:
                 finding.run_id = self.run_id
                 self._findings.append(finding)
+                
+                # Persist finding to database
+                if self.db:
+                    try:
+                        self.db.save_finding(finding)
+                    except Exception:
+                        pass  # Don't fail pipeline on DB error
             
             # Update finding counts
             self.metadata.total_findings = len(self._findings)
