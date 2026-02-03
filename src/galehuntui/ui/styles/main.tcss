@@ -127,7 +127,7 @@ DataTable > .datatable--cursor {
 }
 
 DataTable > .datatable--hover {
-    background: $surface-lighter; 20%;
+    background: $surface-lighter 20%;
 }
 
 /* Scrollbar */

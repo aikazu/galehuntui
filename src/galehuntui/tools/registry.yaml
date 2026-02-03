@@ -73,14 +73,9 @@ tools:
     required: false
     description: "Automatic SQL injection and database takeover tool"
 
-  hydra:
-    install_method: "system"
-    package_name: "hydra"
-    required: false
-    description: "Network logon cracker"
-
   wfuzz:
-    install_method: "pip"
-    package_name: "wfuzz"
+    install_method: "git"
+    repo_url: "https://github.com/xmendez/wfuzz.git"
+    branch: "master"
     required: false
     description: "Web application fuzzer"

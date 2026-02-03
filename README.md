@@ -25,7 +25,7 @@ Reconnaissance → Vulnerability Scanning → Targeted Injection → Comprehensi
 | Feature | Description |
 |---------|-------------|
 | **Dual Interface** | Full-featured TUI for interactive use, CLI for automation |
-| **11 Integrated Tools** | subfinder, dnsx, httpx, katana, gau, nuclei, dalfox, ffuf, sqlmap, hydra, wfuzz |
+| **10 Integrated Tools** | subfinder, dnsx, httpx, katana, gau, nuclei, dalfox, ffuf, sqlmap, wfuzz |
 | **Smart Classification** | Automatic URL classification for targeted testing (XSS, SQLi, SSRF, etc.) |
 | **Flexible Runners** | Docker-first approach with transparent local fallback |
 | **3 Engagement Modes** | Bug Bounty, Authorized, and Aggressive modes with appropriate safeguards |
@@ -454,7 +454,6 @@ The scanning pipeline processes targets through these stages:
 | **dalfox** | XSS Testing | hahwul/dalfox | Profile |
 | **ffuf** | Fuzzing | ffuf/ffuf | Profile |
 | **sqlmap** | SQLi Testing | sqlmapproject/sqlmap | Mode |
-| **hydra** | Auth Testing | vanhauser-thc/thc-hydra | Mode |
 | **wfuzz** | Fuzzing | xmendez/wfuzz | Mode |
 
 ### Tool Installation

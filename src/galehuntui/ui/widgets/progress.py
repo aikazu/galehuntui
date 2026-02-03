@@ -41,7 +41,7 @@ class StageRow(Widget):
         padding: 0 1;
     }
     StageRow:hover {
-        background: $surface-lighter;
+        background: #26293b;
     }
     StageRow .stage-icon {
         width: 3;
@@ -63,13 +63,13 @@ class StageRow(Widget):
         text-align: right;
     }
     StageRow.running {
-        background: $surface-light;
+        background: #1a1c29;
     }
     StageRow.completed .stage-name {
-        color: $success;
+        color: #00ff9d;
     }
     StageRow.failed .stage-name {
-        color: $error;
+        color: #ff3333;
     }
     """
 
@@ -139,14 +139,14 @@ class PipelineProgressWidget(Widget):
         layout: vertical;
         height: auto;
         min-height: 10;
-        border: solid $border;
-        background: $surface;
+        border: solid #2e344d;
+        background: #0f111a;
     }
     PipelineProgressWidget .progress-header {
         height: 3;
-        background: $surface-light;
+        background: #1a1c29;
         padding: 0 1;
-        border-bottom: solid $border;
+        border-bottom: solid #2e344d;
     }
     PipelineProgressWidget .progress-header Label {
         width: 1fr;
@@ -164,7 +164,7 @@ class PipelineProgressWidget(Widget):
     }
     PipelineProgressWidget .stages-header {
         height: 1;
-        background: $surface-light;
+        background: #1a1c29;
         padding: 0 1;
     }
     PipelineProgressWidget .stages-header Static {

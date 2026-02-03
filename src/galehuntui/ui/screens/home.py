@@ -45,8 +45,8 @@ class HomeScreen(Screen):
     #stats-panel {
         column-span: 2;
         height: 7;
-        background: $surface-light;
-        border: solid $border;
+        background: #1a1c29;
+        border: solid #2e344d;
         layout: horizontal;
         padding: 0 1;
         margin-bottom: 1;
@@ -56,7 +56,7 @@ class HomeScreen(Screen):
         width: 1fr;
         height: 100%;
         align: center middle;
-        border-right: solid $surface;
+        border-right: solid #0f111a;
     }
     
     .stat-card:last-of-type {
@@ -65,7 +65,7 @@ class HomeScreen(Screen):
 
     .stat-value {
         text-align: center;
-        color: $secondary;
+        color: #ff0055;
         text-style: bold;
         width: 100%;
         content-align: center middle;
@@ -73,27 +73,27 @@ class HomeScreen(Screen):
 
     .stat-label {
         text-align: center;
-        color: $text-muted;
+        color: #64748b;
         width: 100%;
     }
 
     /* Recent Runs Table */
     #recent-runs-container {
         height: 100%;
-        border: solid $border;
-        background: $surface;
+        border: solid #2e344d;
+        background: #0f111a;
         row-span: 1;
     }
     
     DataTable {
         height: 100%;
-        background: $surface;
+        background: #0f111a;
         border: none;
     }
     
     DataTable > .datatable--header {
-        background: $surface-light;
-        color: $primary;
+        background: #1a1c29;
+        color: #00f2ea;
         text-style: bold;
     }
 
@@ -101,12 +101,11 @@ class HomeScreen(Screen):
     #side-panel {
         height: 100%;
         layout: vertical;
-        row-gutter: 1;
     }
 
     .panel-header {
-        background: $surface-light;
-        color: $primary;
+        background: #1a1c29;
+        color: #00f2ea;
         text-style: bold;
         padding: 0 1;
         height: 1;
@@ -120,8 +119,8 @@ class HomeScreen(Screen):
     }
 
     .status-box {
-        background: $surface-light;
-        border: solid $border;
+        background: #1a1c29;
+        border: solid #2e344d;
         padding: 1;
         height: auto;
         margin-bottom: 1;
@@ -135,12 +134,12 @@ class HomeScreen(Screen):
     }
     
     .status-dot {
-        color: $success;
+        color: #00ff9d;
         margin-right: 1;
     }
     
     .status-text {
-        color: $text-muted;
+        color: #64748b;
     }
     """
 

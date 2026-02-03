@@ -122,7 +122,6 @@ galehuntui/
 |   |   |   +-- dalfox.py
 |   |   |   +-- ffuf.py
 |   |   |   +-- sqlmap.py
-|   |   |   +-- hydra.py
 |   |   |   +-- wfuzz.py
 |   |   +-- deps/             # Dependency managers (IMPLEMENTED)
 |   |       +-- __init__.py
@@ -1006,8 +1005,7 @@ dev = [
 | ffuf | ffuf/ffuf | GitHub Release |
 | dalfox | hahwul/dalfox | GitHub Release |
 | sqlmap | sqlmapproject/sqlmap | Git Clone |
-| hydra | vanhauser-thc/thc-hydra | Package Manager |
-| wfuzz | xmendez/wfuzz | pip install |
+| wfuzz | xmendez/wfuzz | Git Clone |
 
 ---
 

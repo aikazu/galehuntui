@@ -31,23 +31,23 @@ class SettingsScreen(Screen):
     CSS = """
     SettingsScreen {
         layout: horizontal;
-        background: $surface;
+        background: #0f111a;
     }
 
     #sidebar {
         width: 30;
         height: 100%;
         dock: left;
-        background: $surface-light;
-        border-right: solid $border;
+        background: #1a1c29;
+        border-right: solid #2e344d;
     }
 
     #sidebar-title {
         padding: 1 2;
-        background: $surface-lighter;
+        background: #26293b;
         width: 100%;
         text-style: bold;
-        color: $primary;
+        color: #00f2ea;
     }
 
     #sidebar-list {
@@ -57,18 +57,18 @@ class SettingsScreen(Screen):
     ListItem {
         padding: 1 2;
         margin-bottom: 1;
-        background: $surface-light;
-        color: $text;
+        background: #1a1c29;
+        color: #e2e8f0;
     }
 
     ListItem:hover {
-        background: $surface-lighter;
+        background: #26293b;
     }
 
     ListItem.-selected {
-        background: $surface-lighter;
-        color: $primary;
-        border-left: wide $primary;
+        background: #26293b;
+        color: #00f2ea;
+        border-left: wide #00f2ea;
     }
 
     #content {
@@ -92,13 +92,13 @@ class SettingsScreen(Screen):
     }
 
     .setting-label {
-        color: $primary;
+        color: #00f2ea;
         text-style: bold;
         margin-bottom: 1;
     }
     
     .setting-description {
-        color: $text-muted;
+        color: #64748b;
         margin-bottom: 1;
         text-style: italic;
     }
@@ -110,8 +110,8 @@ class SettingsScreen(Screen):
         padding-right: 2;
         padding-top: 1;
         padding-bottom: 1;
-        border-top: solid $border;
-        background: $surface-light;
+        border-top: solid #2e344d;
+        background: #1a1c29;
     }
 
     #btn-cancel {

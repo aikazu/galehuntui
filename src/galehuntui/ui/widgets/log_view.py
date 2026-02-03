@@ -56,7 +56,7 @@ class LogViewWidget(Widget):
     }
     LogViewWidget .log-toolbar {
         height: 3;
-        background: $surface-light;
+        background: #1a1c29;
         padding: 0 1;
     }
     LogViewWidget .log-toolbar Select {
@@ -73,8 +73,8 @@ class LogViewWidget(Widget):
     }
     LogViewWidget RichLog {
         height: 1fr;
-        border: solid $border;
-        background: $surface;
+        border: solid #2e344d;
+        background: #0f111a;
     }
     """
 

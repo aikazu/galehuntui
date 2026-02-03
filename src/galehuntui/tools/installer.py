@@ -303,10 +303,22 @@ class ToolInstaller:
             self.extract_archive(archive_path, extract_dir)
             
             found_binary = None
+            platform_str = self.get_platform()
+            arch = self.get_arch()
+            
             for candidate in extract_dir.rglob("*"):
-                if candidate.is_file() and candidate.name == binary_name:
+                if not candidate.is_file():
+                    continue
+                cname = candidate.name
+                if cname == binary_name:
                     found_binary = candidate
                     break
+                if cname.startswith(binary_name) and platform_str in cname and arch in cname:
+                    found_binary = candidate
+                    break
+                if cname.startswith(binary_name) and not cname.endswith(('.txt', '.md', '.json', '.yaml')):
+                    if found_binary is None:
+                        found_binary = candidate
             
             if found_binary is None:
                 raise ToolInstallError(
@@ -457,24 +469,24 @@ class ToolInstaller:
         if script_path.exists() and script_path.is_dir():
             return True
         
+        if shutil.which(tool_name):
+            return True
+        
         return False
     
     async def get_tool_version(self, tool_name: str) -> Optional[str]:
-        """Get installed tool version.
-        
-        Args:
-            tool_name: Tool identifier
-            
-        Returns:
-            Version string or None if cannot be determined
-        """
+        """Get installed tool version."""
         binary_path = self.bin_dir / tool_name
+        script_path = self.scripts_dir / tool_name
         
-        if not binary_path.exists():
+        if not binary_path.exists() and not script_path.exists():
             return None
         
+        if script_path.exists():
+            return "Installed"
+        
         try:
-            for flag in ["-version", "--version", "-v"]:
+            for flag in ["-version", "--version", "-V", "version"]:
                 process = await asyncio.create_subprocess_exec(
                     str(binary_path),
                     flag,
@@ -487,10 +499,40 @@ class ToolInstaller:
                     timeout=5.0,
                 )
                 
-                output = (stdout + stderr).decode().strip()
-                if output:
-                    return output.split("\n")[0]
+                output = (stdout + stderr).decode()
+                version = self._extract_version(output)
+                if version:
+                    return version
         except Exception:
             pass
+        
+        return "Installed"
+    
+    def _extract_version(self, output: str) -> Optional[str]:
+        """Extract version string from tool output."""
+        import re
+        
+        ansi_escape = re.compile(r'\x1b\[[0-9;]*m')
+        output = ansi_escape.sub('', output)
+        
+        version_patterns = [
+            r'[Vv]ersion[:\s]+v?(\d+\.\d+\.?\d*)',
+            r'\bv(\d+\.\d+\.\d+)\b',
+        ]
+        
+        for line in output.split('\n'):
+            line = line.strip()
+            if not line or len(line) < 3:
+                continue
+            if any(c in line for c in ['█', '░', '▓', '─', '│', '┌', '┐', '└', '┘', '_/', '\\', '__', '████']):
+                continue
+            
+            for pattern in version_patterns:
+                match = re.search(pattern, line)
+                if match:
+                    ver = match.group(1)
+                    parts = ver.split('.')
+                    if len(parts) >= 2 and int(parts[0]) < 100:
+                        return f"v{ver}"
         
         return None

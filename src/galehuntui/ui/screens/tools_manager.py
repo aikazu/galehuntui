@@ -17,10 +17,10 @@ class ToolsManagerScreen(Screen):
 
     BINDINGS = [
         ("escape", "app.pop_screen", "Back"),
-        ("u", "update_tool", "Update"),
-        ("i", "install_tool", "Install"),
+        ("i", "install_tool", "Install Selected"),
+        ("u", "update_tool", "Update Selected"),
         ("a", "install_all", "Install All"),
-        ("v", "verify_tool", "Verify"),
+        ("m", "install_missing", "Install Missing"),
     ]
 
     def __init__(self, name: str | None = None, id: str | None = None, classes: str | None = None) -> None:
@@ -45,10 +45,11 @@ class ToolsManagerScreen(Screen):
                 yield DataTable(id="optional_tools_table", cursor_type="row")
             
             with Horizontal(classes="controls-bar"):
-                yield Button("Install Selected", variant="primary", id="btn_install")
+                yield Button("Install All", variant="primary", id="btn_install_all")
+                yield Button("Update All", variant="default", id="btn_update_all")
+                yield Button("Install Selected", variant="default", id="btn_install")
                 yield Button("Update Selected", variant="default", id="btn_update")
-                yield Button("Verify Selected", variant="default", id="btn_verify")
-                yield Button("Install All Missing", variant="success", id="btn_install_all")
+                yield Button("Install Missing", variant="success", id="btn_install_missing")
 
         yield Footer()
 
@@ -161,22 +162,70 @@ class ToolsManagerScreen(Screen):
 
     @work
     async def action_install_all(self) -> None:
-        """Install all missing tools."""
-        self.notify("Starting full installation...", severity="information")
-        
-        # Disable buttons
+        """Install all tools (reinstall if already installed)."""
+        self.notify("Installing all tools...", severity="information")
         self.query("Button").set_class(True, "-disabled")
         
         try:
             results = await self.installer.install_all(skip_errors=True)
-            
             failures = [k for k, v in results.items() if isinstance(v, Exception)]
             
             if failures:
-                self.notify(f"Failed to install: {', '.join(failures)}", severity="error")
+                self.notify(f"Failed: {', '.join(failures)}", severity="error")
             else:
-                self.notify("All tools installed successfully", severity="information")
-                
+                self.notify("All tools installed", severity="information")
+        except Exception as e:
+            self.notify(f"Installation failed: {e}", severity="error")
+        finally:
+            self.query("Button").set_class(False, "-disabled")
+            _ = self.load_tools()
+
+    @work
+    async def action_update_all(self) -> None:
+        """Update all installed tools."""
+        self.notify("Updating all tools...", severity="information")
+        self.query("Button").set_class(True, "-disabled")
+        
+        try:
+            tools = self.registry.get("tools", {})
+            for tool_id in tools:
+                if self.installer.verify_tool(tool_id):
+                    try:
+                        await self.installer.install_tool(tool_id)
+                    except Exception:
+                        pass
+            self.notify("All tools updated", severity="information")
+        except Exception as e:
+            self.notify(f"Update failed: {e}", severity="error")
+        finally:
+            self.query("Button").set_class(False, "-disabled")
+            _ = self.load_tools()
+
+    @work
+    async def action_install_missing(self) -> None:
+        """Install only missing tools."""
+        self.notify("Installing missing tools...", severity="information")
+        self.query("Button").set_class(True, "-disabled")
+        
+        try:
+            tools = self.registry.get("tools", {})
+            installed = 0
+            failed = []
+            
+            for tool_id in tools:
+                if not self.installer.verify_tool(tool_id):
+                    try:
+                        await self.installer.install_tool(tool_id)
+                        installed += 1
+                    except Exception as e:
+                        failed.append(tool_id)
+            
+            if failed:
+                self.notify(f"Failed: {', '.join(failed)}", severity="error")
+            elif installed == 0:
+                self.notify("All tools already installed", severity="information")
+            else:
+                self.notify(f"Installed {installed} tools", severity="information")
         except Exception as e:
             self.notify(f"Installation failed: {e}", severity="error")
         finally:
@@ -203,7 +252,9 @@ class ToolsManagerScreen(Screen):
             self.action_install_tool()
         elif event.button.id == "btn_update":
             self.action_update_tool()
-        elif event.button.id == "btn_verify":
-            self.action_verify_tool()
         elif event.button.id == "btn_install_all":
             self.action_install_all()
+        elif event.button.id == "btn_update_all":
+            self.action_update_all()
+        elif event.button.id == "btn_install_missing":
+            self.action_install_missing()

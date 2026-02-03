@@ -74,7 +74,7 @@ class FindingsTableWidget(Widget):
     }
     FindingsTableWidget .findings-toolbar {
         height: 3;
-        background: $surface-light;
+        background: #1a1c29;
         padding: 0 1;
     }
     FindingsTableWidget .findings-toolbar Select {

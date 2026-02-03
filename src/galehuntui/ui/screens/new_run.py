@@ -23,9 +23,9 @@ from textual.widgets import (
 from textual import on, work
 from textual.app import ComposeResult
 
-from galehuntui.core.constants import EngagementMode, RunState
+from galehuntui.core.constants import EngagementMode
 from galehuntui.core.config import load_profile_config, get_config_dir, load_scope_config
-from galehuntui.core.models import RunMetadata, ScopeConfig, RunConfig
+from galehuntui.core.models import RunMetadata, ScopeConfig, RunConfig, RunState
 from galehuntui.core.exceptions import ConfigError
 from galehuntui.storage.database import Database
 from galehuntui.orchestrator.pipeline import PipelineOrchestrator

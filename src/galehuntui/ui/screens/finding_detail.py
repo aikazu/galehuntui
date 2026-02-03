@@ -36,8 +36,8 @@ class FindingDetailScreen(Screen):
         height: 3;
         dock: top;
         margin-bottom: 1;
-        background: $surface-light;
-        border: solid $border;
+        background: #1a1c29;
+        border: solid #2e344d;
         padding: 0 1;
         align-y: middle;
     }
@@ -46,23 +46,23 @@ class FindingDetailScreen(Screen):
         padding: 0 1;
         margin-right: 1;
         text-style: bold;
-        color: $surface;
-        background: $text-muted;
+        color: #0f111a;
+        background: #64748b;
     }
 
-    .badge-critical { background: $error; color: white; }
-    .badge-high { background: $error; opacity: 80%; color: white; }
-    .badge-medium { background: $warning; color: $surface; }
-    .badge-low { background: $success; color: $surface; }
-    .badge-info { background: $primary; color: $surface; }
+    .badge-critical { background: #ff3333; color: white; }
+    .badge-high { background: #ff3333; opacity: 80%; color: white; }
+    .badge-medium { background: #ffb700; color: #0f111a; }
+    .badge-low { background: #00ff9d; color: #0f111a; }
+    .badge-info { background: #00f2ea; color: #0f111a; }
 
     .meta-item {
         margin-right: 2;
-        color: $text-muted;
+        color: #64748b;
     }
     
     .meta-value {
-        color: $text;
+        color: #e2e8f0;
         text-style: bold;
     }
 
@@ -75,9 +75,9 @@ class FindingDetailScreen(Screen):
     .sidebar {
         width: 30%;
         height: 100%;
-        border-right: solid $border;
+        border-right: solid #2e344d;
         padding-right: 1;
-        background: $surface;
+        background: #0f111a;
     }
 
     .detail-group {
@@ -85,12 +85,12 @@ class FindingDetailScreen(Screen):
     }
 
     .detail-label {
-        color: $primary;
+        color: #00f2ea;
         text-style: bold;
     }
 
     .detail-value {
-        color: $text;
+        color: #e2e8f0;
     }
 
     /* Main Tab Area */
@@ -102,14 +102,14 @@ class FindingDetailScreen(Screen):
     
     Markdown {
         padding: 1;
-        background: $surface;
+        background: #0f111a;
     }
     
     .evidence-item {
         padding: 1;
-        border: solid $border;
+        border: solid #2e344d;
         margin-bottom: 1;
-        background: $surface-light;
+        background: #1a1c29;
     }
     """
 

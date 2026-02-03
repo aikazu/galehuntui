@@ -39,8 +39,8 @@ class ScopeEditorScreen(Screen):
     .scope-sidebar {
         width: 30%;
         height: 100%;
-        border-right: solid $border;
-        background: $surface-light;
+        border-right: solid #2e344d;
+        background: #1a1c29;
         padding: 1;
     }
     
@@ -56,18 +56,18 @@ class ScopeEditorScreen(Screen):
     }
     
     .form-label {
-        color: $text-muted;
+        color: #64748b;
         margin-bottom: 1;
     }
 
     TextArea {
         height: 8;
-        border: solid $border;
-        background: $surface-light;
+        border: solid #2e344d;
+        background: #1a1c29;
     }
     
     TextArea:focus {
-        border: solid $primary;
+        border: solid #00f2ea;
     }
 
     .sidebar-btn {
@@ -77,8 +77,8 @@ class ScopeEditorScreen(Screen):
 
     #scope-list {
         height: 1fr;
-        border: solid $border;
-        background: $surface;
+        border: solid #2e344d;
+        background: #0f111a;
         margin-bottom: 1;
     }
 
