@@ -45,6 +45,17 @@ class ClassificationGroup(Enum):
     GENERIC = "generic"
 
 
+class AuditEventType(str, Enum):
+    """Types of events recorded in the audit log."""
+    RUN_START = "run_start"
+    RUN_FINISH = "run_finish"
+    TOOL_START = "tool_start"
+    TOOL_FINISH = "tool_finish"
+    SCOPE_VIOLATION = "scope_violation"
+    MODE_CHANGE = "mode_change"
+    FEATURE_TOGGLE = "feature_toggle"
+
+
 # Static extensions to filter out during crawling/classification
 STATIC_EXTENSIONS = {
     # Images

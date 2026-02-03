@@ -44,6 +44,10 @@ class DatabaseError(StorageError):
     """Database operation failed."""
     pass
 
+class AuditLogError(GaleHunTUIError):
+    """Failed to write to audit log. Run should be aborted."""
+    pass
+
 # Runner errors
 class RunnerError(GaleHunTUIError):
     """Base exception for runner errors."""
