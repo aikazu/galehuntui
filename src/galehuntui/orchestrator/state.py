@@ -14,6 +14,7 @@ from uuid import uuid4
 if TYPE_CHECKING:
     from galehuntui.storage.database import Database
 
+from galehuntui.core.config import get_runs_dir
 from galehuntui.core.audit import AuditLogger
 from galehuntui.core.constants import AuditEventType, EngagementMode, PipelineStage, StepStatus
 from galehuntui.core.models import (
@@ -87,7 +88,7 @@ class RunStateManager:
         
         # Set up directories
         if base_dir is None:
-            base_dir = Path.home() / ".local" / "share" / "galehuntui" / "runs"
+            base_dir = get_runs_dir()
         
         self.run_dir = base_dir / self.run_id
         self.artifacts_dir = self.run_dir / "artifacts"

@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Optional
 
+from galehuntui.core.config import get_plugins_dir
 from galehuntui.plugins.base import ToolPlugin, PluginMetadata, PluginState
 
 
@@ -27,7 +28,7 @@ class PluginInfo:
 @dataclass
 class PluginManagerConfig:
     plugin_dir: Path = field(
-        default_factory=lambda: Path.home() / ".local" / "share" / "galehuntui" / "plugins"
+        default_factory=get_plugins_dir
     )
     enabled_plugins: list[str] = field(default_factory=list)
     disabled_plugins: list[str] = field(default_factory=list)

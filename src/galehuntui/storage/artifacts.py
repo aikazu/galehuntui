@@ -25,7 +25,7 @@ class ArtifactStorage:
         
         Args:
             base_dir: Base directory for all run artifacts
-                     (typically ~/.local/share/galehuntui/runs/)
+                     (typically {project_root}/data/runs/)
         """
         self.base_dir = base_dir
     
