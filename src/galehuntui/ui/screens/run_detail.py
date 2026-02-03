@@ -16,6 +16,7 @@ from galehuntui.storage.database import Database
 from galehuntui.core.models import RunState, PipelineStep, Finding, Severity, RunMetadata
 from galehuntui.core.constants import StepStatus
 from galehuntui.core.config import get_data_dir
+from galehuntui.core.utils import classify_finding
 
 logger = logging.getLogger(__name__)
 
@@ -535,14 +536,9 @@ class RunDetailScreen(Screen):
         info_count = 0
 
         for finding in findings:
-            ftype = finding.type.lower()
-            tool = finding.tool.lower() if finding.tool else ""
+            category = classify_finding(finding)
             
-            is_subdomain = ftype in ("subdomain", "dns_record") or tool in ("subfinder", "dnsx")
-            is_livedomain = ftype == "http_probe" or tool == "httpx"
-            is_info = finding.severity == Severity.INFO
-            
-            if is_subdomain:
+            if category == "subdomain":
                 subdomain_count += 1
                 if finding.id not in self._seen_finding_ids:
                     self._seen_finding_ids.add(finding.id)
@@ -551,7 +547,7 @@ class RunDetailScreen(Screen):
                         finding.tool,
                         key=finding.id
                     )
-            elif is_livedomain:
+            elif category == "live_domain":
                 livedomain_count += 1
                 if finding.id not in self._seen_finding_ids:
                     self._seen_finding_ids.add(finding.id)
@@ -560,7 +556,7 @@ class RunDetailScreen(Screen):
                         finding.tool,
                         key=finding.id
                     )
-            elif is_info:
+            elif category == "info":
                 info_count += 1
                 if finding.id not in self._seen_finding_ids:
                     self._seen_finding_ids.add(finding.id)
@@ -570,7 +566,7 @@ class RunDetailScreen(Screen):
                         finding.tool,
                         key=finding.id
                     )
-            else:
+            else:  # "findings"
                 findings_count += 1
                 if finding.id not in self._seen_finding_ids:
                     self._seen_finding_ids.add(finding.id)

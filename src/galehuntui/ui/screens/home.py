@@ -12,6 +12,7 @@ from textual.binding import Binding
 from galehuntui.storage.database import Database
 from galehuntui.core.config import get_data_dir
 from galehuntui.core.models import RunState, Severity, RunMetadata
+from galehuntui.core.utils import categorize_findings
 from galehuntui.tools.installer import ToolInstaller
 
 class HomeScreen(Screen):
@@ -248,34 +249,6 @@ class HomeScreen(Screen):
         except Exception:
             return 0
 
-    def _categorize_findings(self, findings: list) -> dict:
-        """Categorize findings into subdomain, live_domain, findings, and info."""
-        counts = {
-            "subdomain": 0,
-            "live_domain": 0,
-            "findings": 0,
-            "info": 0,
-        }
-        
-        for finding in findings:
-            ftype = finding.type.lower() if finding.type else ""
-            tool = finding.tool.lower() if finding.tool else ""
-            
-            is_subdomain = ftype in ("subdomain", "dns_record") or tool in ("subfinder", "dnsx")
-            is_livedomain = ftype == "http_probe" or tool == "httpx"
-            is_info = finding.severity == Severity.INFO
-            
-            if is_subdomain:
-                counts["subdomain"] += 1
-            elif is_livedomain:
-                counts["live_domain"] += 1
-            elif is_info:
-                counts["info"] += 1
-            else:
-                counts["findings"] += 1
-        
-        return counts
-
     def on_mount(self) -> None:
         """Initialize data when screen is mounted."""
         table = self.query_one("#recent_runs_table", DataTable)
@@ -331,10 +304,10 @@ class HomeScreen(Screen):
                 
                 for run in all_runs:
                     findings = db.get_findings_for_run(run.id)
-                    counts = self._categorize_findings(findings)
-                    total_subdomains += counts["subdomain"]
-                    total_live_hosts += counts["live_domain"]
-                    total_findings += counts["findings"]
+                    counts = categorize_findings(findings)
+                    total_subdomains += counts.subdomain
+                    total_live_hosts += counts.live_domain
+                    total_findings += counts.findings
 
             self.query_one("#stat_total_runs", Label).update(str(total_runs_count))
             self.query_one("#stat_subdomains", Label).update(str(total_subdomains))
@@ -350,11 +323,11 @@ class HomeScreen(Screen):
                     status = run.state.value.title()
                     
                     findings = db.get_findings_for_run(run.id)
-                    counts = self._categorize_findings(findings)
+                    counts = categorize_findings(findings)
                     
-                    subdomain_count = counts["subdomain"]
-                    live_count = counts["live_domain"]
-                    finding_count = counts["findings"]
+                    subdomain_count = counts.subdomain
+                    live_count = counts.live_domain
+                    finding_count = counts.findings
                     
                     findings_text = str(finding_count)
                     if finding_count > 0:
