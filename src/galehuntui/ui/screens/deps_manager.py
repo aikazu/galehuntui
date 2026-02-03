@@ -9,6 +9,7 @@ from textual.containers import Container, Horizontal, Vertical
 from textual.screen import Screen
 from textual.widgets import Button, DataTable, Footer, Header, Label
 
+from galehuntui.core.config import get_deps_dir
 from galehuntui.tools.deps.manager import (
     DependencyManager,
     DependencyStatus,
@@ -29,7 +30,7 @@ class DepsManagerScreen(Screen):
     def __init__(self, name: str | None = None, id: str | None = None, classes: str | None = None) -> None:
         super().__init__(name, id, classes)
         # Initialize real dependency manager
-        deps_dir = Path.home() / ".local" / "share" / "galehuntui" / "deps"
+        deps_dir = get_deps_dir()
         self.manager = DependencyManager(deps_dir)
         self.selected_dep_id: str | None = None
 

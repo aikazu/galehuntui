@@ -24,7 +24,7 @@ from textual import on, work
 from textual.app import ComposeResult
 
 from galehuntui.core.constants import EngagementMode
-from galehuntui.core.config import load_profile_config, get_config_dir, load_scope_config
+from galehuntui.core.config import load_profile_config, get_config_dir, load_scope_config, get_data_dir
 from galehuntui.core.models import RunMetadata, ScopeConfig, RunConfig, RunState
 from galehuntui.core.exceptions import ConfigError
 from galehuntui.storage.database import Database
@@ -240,7 +240,7 @@ class NewRunScreen(Screen):
         """Execute the pipeline in the background."""
         try:
             # 1. Setup paths
-            data_dir = Path.home() / ".local" / "share" / "galehuntui"
+            data_dir = get_data_dir()
             db_path = data_dir / "galehuntui.db"
             run_dir = data_dir / "runs" / run_id
             

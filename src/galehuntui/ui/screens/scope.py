@@ -19,7 +19,7 @@ from textual.containers import Container, Horizontal, Vertical, VerticalScroll
 from textual.reactive import reactive
 from textual.binding import Binding
 
-from galehuntui.core.config import get_config_dir
+from galehuntui.core.config import get_config_dir, get_user_config_path
 
 class ScopeEditorScreen(Screen):
     """Screen for editing scope configurations."""
@@ -161,8 +161,8 @@ class ScopeEditorScreen(Screen):
                     continue
                 scope_files.append(p)
                 
-        # Check user config dir (~/.config/galehuntui)
-        user_config = Path.home() / ".config" / "galehuntui"
+        # Check user config dir (workspace-isolated)
+        user_config = get_user_config_path().parent
         if user_config.exists():
             for p in user_config.glob("*.yaml"):
                 if p.name in ["profiles.yaml", "modes.yaml", "registry.yaml"]:
