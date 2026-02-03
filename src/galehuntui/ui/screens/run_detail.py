@@ -91,7 +91,7 @@ class RunDetailScreen(Screen):
         steps_table.add_columns("Step", "Status", "Duration")
         
         # Start loading data
-        self._load_run_data()
+        _ = self._load_run_data()
 
     @work(exclusive=True)
     async def _load_run_data(self) -> None:
@@ -106,30 +106,30 @@ class RunDetailScreen(Screen):
             
             run = db.get_run(self.run_id)
             if not run:
-                self.app.call_from_thread(self.notify, "Run not found in database", severity="error")
-                self.app.call_from_thread(self.app.pop_screen)
+                self.notify("Run not found in database", severity="error")
+                self.app.pop_screen()
                 return
 
-            # Update UI components on main thread
-            self.app.call_from_thread(self._update_run_header, run)
+            # Update UI components (we're in the same thread with @work)
+            self._update_run_header(run)
             
             steps = db.get_steps(self.run_id)
-            self.app.call_from_thread(self._update_steps_table, steps)
+            self._update_steps_table(steps)
             
             findings = db.get_findings_for_run(self.run_id)
-            self.app.call_from_thread(self._update_findings_table, findings)
+            self._update_findings_table(findings)
             
-            self.app.call_from_thread(self._update_progress, run)
-            self.app.call_from_thread(self._log_initial_state, run)
+            self._update_progress(run)
+            self._log_initial_state(run)
 
             # Start polling if active
             if run.state in (RunState.RUNNING, RunState.PENDING, RunState.PAUSED):
-                self.app.call_from_thread(self._start_polling)
+                self._start_polling()
                 
             db.close()
 
         except Exception as e:
-            self.app.call_from_thread(self.notify, f"Error loading run: {e}", severity="error")
+            self.notify(f"Error loading run: {e}", severity="error")
 
     def _start_polling(self) -> None:
         """Start the polling interval."""
@@ -146,7 +146,7 @@ class RunDetailScreen(Screen):
             # We can't use @work for the interval callback directly as it spawns too many workers
             # But we should run DB ops in a worker. 
             # Ideally set_interval calls a method that calls a worker.
-            self._fetch_updates_worker()
+            _ = self._fetch_updates_worker()
         except Exception:
             pass # Swallow errors during polling to avoid crashing UI
 
@@ -162,15 +162,15 @@ class RunDetailScreen(Screen):
                 if run.state in (RunState.COMPLETED, RunState.FAILED, RunState.CANCELLED):
                     self._polling = False
                 
-                # Update UI
-                self.app.call_from_thread(self._update_run_header, run)
-                self.app.call_from_thread(self._update_progress, run)
+                # Update UI (we're in the same thread with @work)
+                self._update_run_header(run)
+                self._update_progress(run)
 
                 steps = db.get_steps(self.run_id)
-                self.app.call_from_thread(self._update_steps_table, steps)
+                self._update_steps_table(steps)
 
                 findings = db.get_findings_for_run(self.run_id)
-                self.app.call_from_thread(self._update_findings_table, findings)
+                self._update_findings_table(findings)
 
             db.close()
         except Exception:
