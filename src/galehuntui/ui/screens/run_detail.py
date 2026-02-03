@@ -39,7 +39,9 @@ class RunDetailScreen(Screen):
         ("p", "toggle_pause", "Pause/Resume"),
         ("c", "cancel_run", "Cancel Run"),
         ("l", "focus_logs", "Logs"),
+        ("s", "focus_subdomains", "Subdomains"),
         ("f", "focus_findings", "Findings"),
+        ("i", "focus_info", "Info"),
     ]
 
     CSS = """
@@ -250,9 +252,6 @@ class RunDetailScreen(Screen):
                     yield Label("0", id="val-subdomains", classes="stat-value")
                     yield Label("Subdomains", classes="stat-label")
                 with Vertical(classes="stat-card"):
-                    yield Label("0", id="val-dns", classes="stat-value")
-                    yield Label("DNS Resolved", classes="stat-label")
-                with Vertical(classes="stat-card"):
                     yield Label("0", id="val-live", classes="stat-value")
                     yield Label("Live Hosts", classes="stat-label")
                 with Vertical(classes="stat-card"):
@@ -274,13 +273,17 @@ class RunDetailScreen(Screen):
                         yield Button("Cancel", variant="error", id="btn-cancel")
                         yield Button("Export", variant="primary", id="btn-export")
 
-                # Right: Logs/Findings
+                # Right: Logs/Findings with 4 tabs
                 with Container(classes="content-panel"):
                     with TabbedContent():
-                        with TabPane("Logs", id="tab-logs"):
+                        with TabPane("Live Logs", id="tab-logs"):
                             yield RichLog(highlight=True, markup=True, id="run-log")
+                        with TabPane("Subdomain (0)", id="tab-subdomain"):
+                            yield DataTable(id="subdomain-table")
                         with TabPane("Findings (0)", id="tab-findings"):
                             yield DataTable(id="findings-table")
+                        with TabPane("Info (0)", id="tab-info"):
+                            yield DataTable(id="info-table")
         
         yield Footer()
 
@@ -294,10 +297,20 @@ class RunDetailScreen(Screen):
             self.app.pop_screen()
             return
 
-        # Setup Findings Table
+        # Setup Findings Table (real vulnerabilities - not INFO)
         findings_table = self.query_one("#findings-table", DataTable)
         findings_table.add_columns("Severity", "Type", "Host", "Tool")
         findings_table.cursor_type = "row"
+
+        # Setup Subdomain Table
+        subdomain_table = self.query_one("#subdomain-table", DataTable)
+        subdomain_table.add_columns("Host", "Tool")
+        subdomain_table.cursor_type = "row"
+
+        # Setup Info Table (INFO severity items, excluding subdomains)
+        info_table = self.query_one("#info-table", DataTable)
+        info_table.add_columns("Type", "Host", "Tool")
+        info_table.cursor_type = "row"
 
         # Setup Steps Table (single column, no header)
         steps_table = self.query_one("#steps-table", DataTable)
@@ -430,7 +443,6 @@ class RunDetailScreen(Screen):
     def _update_stats(self, steps: list[PipelineStep], findings_count: int) -> None:
         """Update stats bar."""
         subdomains = 0
-        dns_resolved = 0
         live_hosts = 0
         
         for step in steps:
@@ -438,23 +450,12 @@ class RunDetailScreen(Screen):
                 count = count_output_items(step.output_path)
                 if step.name == "subdomain_enumeration":
                     subdomains = count
-                elif step.name == "dns_resolution":
-                    dns_resolved = count
                 elif step.name == "http_probing":
                     live_hosts = count
         
         self.query_one("#val-subdomains", Label).update(str(subdomains))
-        self.query_one("#val-dns", Label).update(str(dns_resolved))
         self.query_one("#val-live", Label).update(str(live_hosts))
         self.query_one("#val-findings", Label).update(str(findings_count))
-        
-        # Update tab title with count
-        try:
-            from textual.widgets import TabPane
-            findings_tab = self.query_one("#tab-findings", TabPane)
-            findings_tab.update(f"Findings ({findings_count})")
-        except Exception:
-            pass
 
     def _update_steps(self, steps: list[PipelineStep]) -> None:
         """Update steps table."""
@@ -505,8 +506,10 @@ class RunDetailScreen(Screen):
                 table.add_row(display, key=row_key)
 
     def _update_findings(self, findings: list[Finding]) -> None:
-        """Update findings table."""
-        table = self.query_one("#findings-table", DataTable)
+        """Update findings tables - categorized into Subdomain, Findings, and Info tabs."""
+        findings_table = self.query_one("#findings-table", DataTable)
+        subdomain_table = self.query_one("#subdomain-table", DataTable)
+        info_table = self.query_one("#info-table", DataTable)
         log = self.query_one("#run-log", RichLog)
         
         colors = {
@@ -517,24 +520,64 @@ class RunDetailScreen(Screen):
             Severity.INFO: "dim",
         }
 
+        subdomain_count = 0
+        findings_count = 0
+        info_count = 0
+
         for finding in findings:
             if finding.id not in self._seen_finding_ids:
                 self._seen_finding_ids.add(finding.id)
                 
-                color = colors.get(finding.severity, "white")
-                sev = f"[{color}]{finding.severity.value.upper()}[/]"
+                is_subdomain = finding.type.lower() == "subdomain"
+                is_info = finding.severity == Severity.INFO
                 
-                table.add_row(
-                    sev,
-                    finding.type[:30],
-                    finding.host[:40],
-                    finding.tool,
-                    key=finding.id
-                )
-                
-                # Alert on critical/high
-                if finding.severity in (Severity.CRITICAL, Severity.HIGH):
-                    log.write(f"[{color}]⚠[/] {finding.severity.value.upper()}: {finding.type} @ {finding.host}")
+                if is_subdomain:
+                    subdomain_table.add_row(
+                        finding.host[:60],
+                        finding.tool,
+                        key=finding.id
+                    )
+                elif is_info:
+                    info_table.add_row(
+                        finding.type[:30],
+                        finding.host[:50],
+                        finding.tool,
+                        key=finding.id
+                    )
+                else:
+                    color = colors.get(finding.severity, "white")
+                    sev = f"[{color}]{finding.severity.value.upper()}[/]"
+                    
+                    findings_table.add_row(
+                        sev,
+                        finding.type[:30],
+                        finding.host[:40],
+                        finding.tool,
+                        key=finding.id
+                    )
+                    
+                    if finding.severity in (Severity.CRITICAL, Severity.HIGH):
+                        log.write(f"[{color}]⚠[/] {finding.severity.value.upper()}: {finding.type} @ {finding.host}")
+
+        for finding in findings:
+            is_subdomain = finding.type.lower() == "subdomain"
+            is_info = finding.severity == Severity.INFO and not is_subdomain
+            is_finding = not is_subdomain and not is_info
+            
+            if is_subdomain:
+                subdomain_count += 1
+            elif is_info:
+                info_count += 1
+            elif is_finding:
+                findings_count += 1
+
+        try:
+            from textual.widgets import TabPane
+            self.query_one("#tab-subdomain", TabPane).update(f"Subdomain ({subdomain_count})")
+            self.query_one("#tab-findings", TabPane).update(f"Findings ({findings_count})")
+            self.query_one("#tab-info", TabPane).update(f"Info ({info_count})")
+        except Exception:
+            pass
 
     def _log_initial(self, run: RunMetadata) -> None:
         """Log initial state."""
@@ -554,5 +597,11 @@ class RunDetailScreen(Screen):
     def action_focus_logs(self) -> None:
         self.query_one("#run-log").focus()
 
+    def action_focus_subdomains(self) -> None:
+        self.query_one("#subdomain-table").focus()
+
     def action_focus_findings(self) -> None:
         self.query_one("#findings-table").focus()
+
+    def action_focus_info(self) -> None:
+        self.query_one("#info-table").focus()
