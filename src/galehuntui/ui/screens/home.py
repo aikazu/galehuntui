@@ -11,7 +11,7 @@ from textual.binding import Binding
 
 from galehuntui.storage.database import Database
 from galehuntui.core.config import get_data_dir
-from galehuntui.core.models import RunState, Severity
+from galehuntui.core.models import RunState, Severity, RunMetadata
 from galehuntui.tools.installer import ToolInstaller
 
 class HomeScreen(Screen):
@@ -235,10 +235,23 @@ class HomeScreen(Screen):
             classes="status-row"
         )
 
+    def _get_step_output_count(self, run: RunMetadata, step_name: str) -> int:
+        """Count items in a step output file."""
+        try:
+            output_path = run.artifacts_dir / step_name / "output.json"
+            if not output_path.exists():
+                return 0
+            content = output_path.read_text().strip()
+            if not content:
+                return 0
+            return len(content.split('\n'))
+        except Exception:
+            return 0
+
     def on_mount(self) -> None:
         """Initialize data when screen is mounted."""
         table = self.query_one("#recent_runs_table", DataTable)
-        table.add_columns("ID", "Target", "Profile", "Status", "Findings", "Date")
+        table.add_columns("ID", "Target", "Profile", "Status", "Subs/DNS", "Findings", "Date")
         
         # Load real data in background
         _ = self._load_dashboard_data()
@@ -356,6 +369,13 @@ class HomeScreen(Screen):
                 if not summary_text:
                     summary_text = "-"
 
+                # Get counts using actual PipelineStage names from constants.py
+                subs = self._get_step_output_count(run, "subdomain_enumeration")
+                dns = self._get_step_output_count(run, "dns_resolution")
+                subs_dns_text = f"{subs} / {dns}"
+                if subs == 0 and dns == 0:
+                    subs_dns_text = "-"
+
                 # Format Date
                 date_str = run.created_at.strftime("%Y-%m-%d %H:%M")
                 
@@ -365,6 +385,7 @@ class HomeScreen(Screen):
                     run.target,
                     run.profile.title(),
                     status,
+                    subs_dns_text,
                     summary_text,
                     date_str
                 )

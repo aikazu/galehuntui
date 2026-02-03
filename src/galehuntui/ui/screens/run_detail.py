@@ -7,20 +7,29 @@ from textual.app import ComposeResult
 from textual.screen import Screen
 from textual.widgets import (
     Header, Footer, Label, Button, DataTable, RichLog, ProgressBar, 
-    TabbedContent, TabPane
+    TabbedContent, TabPane, Static
 )
-from textual.containers import Container, Horizontal
+from textual.containers import Container, Horizontal, Vertical
 from textual import work
 
 from galehuntui.storage.database import Database
 from galehuntui.core.models import RunState, PipelineStep, Finding, Severity, RunMetadata
 from galehuntui.core.constants import StepStatus
+from galehuntui.core.config import get_data_dir
 
 logger = logging.getLogger(__name__)
 
-def get_data_dir() -> Path:
-    """Get the data directory path."""
-    return Path.home() / ".local" / "share" / "galehuntui"
+def count_output_items(output_path: Path | None) -> int:
+    """Count items in a JSON lines output file."""
+    if not output_path or not output_path.exists():
+        return 0
+    try:
+        content = output_path.read_text().strip()
+        if not content:
+            return 0
+        return len(content.split('\n'))
+    except Exception:
+        return 0
 
 class RunDetailScreen(Screen):
     """Screen for monitoring a running scan or viewing a completed one."""
@@ -29,7 +38,191 @@ class RunDetailScreen(Screen):
         ("escape", "app.pop_screen", "Back"),
         ("p", "toggle_pause", "Pause/Resume"),
         ("c", "cancel_run", "Cancel Run"),
+        ("l", "focus_logs", "Logs"),
+        ("f", "focus_findings", "Findings"),
     ]
+
+    CSS = """
+    .run-detail-container {
+        padding: 1;
+    }
+
+    /* Header Info Bar - Compact */
+    .run-header {
+        height: 3;
+        background: $surface;
+        border: solid $border;
+        margin-bottom: 1;
+    }
+    
+    .run-header-inner {
+        padding: 0 2;
+    }
+    
+    .header-item {
+        width: auto;
+        padding: 0 2;
+        content-align: center middle;
+    }
+    
+    .header-id {
+        color: $text-muted;
+    }
+    
+    .header-target {
+        color: $text;
+        text-style: bold;
+    }
+    
+    .header-status {
+        padding: 0 2;
+        text-style: bold;
+    }
+    
+    .header-status.running {
+        color: $primary;
+    }
+    
+    .header-status.completed {
+        color: $success;
+    }
+    
+    .header-status.failed, .header-status.cancelled {
+        color: $error;
+    }
+    
+    .header-status.paused {
+        color: $warning;
+    }
+    
+    .header-duration {
+        color: $text-muted;
+    }
+
+    /* Stats Bar - Prominent */
+    .stats-bar {
+        height: 5;
+        background: $surface;
+        border: solid $border;
+        margin-bottom: 1;
+    }
+    
+    .stat-card {
+        width: 1fr;
+        height: 100%;
+        content-align: center middle;
+        border-right: solid $border;
+    }
+    
+    .stat-card:last-child {
+        border-right: none;
+    }
+    
+    .stat-value {
+        text-style: bold;
+        color: $primary;
+    }
+    
+    .stat-label {
+        color: $text-muted;
+    }
+
+    /* Main Content Split */
+    .main-split {
+        height: 1fr;
+    }
+
+    /* Left Panel - Pipeline */
+    .pipeline-panel {
+        width: 35;
+        height: 100%;
+        background: $surface;
+        border: solid $border;
+        margin-right: 1;
+    }
+    
+    .pipeline-header {
+        height: 3;
+        background: $panel;
+        padding: 0 1;
+        content-align: left middle;
+        border-bottom: solid $border;
+    }
+    
+    .pipeline-title {
+        color: $primary;
+        text-style: bold;
+    }
+    
+    .pipeline-progress-container {
+        height: 3;
+        padding: 1;
+        border-bottom: solid $border;
+    }
+    
+    .steps-container {
+        height: 1fr;
+        padding: 0;
+    }
+    
+    #steps-table {
+        height: 100%;
+        border: none;
+        background: transparent;
+    }
+    
+    #steps-table > .datatable--header {
+        display: none;
+    }
+    
+    .pipeline-controls {
+        height: auto;
+        padding: 1;
+        border-top: solid $border;
+    }
+    
+    .pipeline-controls Button {
+        width: 100%;
+        margin-bottom: 1;
+        height: 3;
+    }
+    
+    .pipeline-controls Button:last-child {
+        margin-bottom: 0;
+    }
+
+    /* Right Panel - Logs/Findings */
+    .content-panel {
+        width: 1fr;
+        height: 100%;
+        border: solid $border;
+    }
+    
+    #run-log {
+        height: 100%;
+        border: none;
+        background: $background;
+    }
+    
+    #findings-table {
+        height: 100%;
+        border: none;
+    }
+    
+    /* Tab styling */
+    TabbedContent {
+        height: 100%;
+    }
+    
+    TabPane {
+        height: 100%;
+        padding: 0;
+    }
+    
+    ContentSwitcher {
+        height: 100%;
+    }
+    """
 
     def __init__(self, run_id: str | None = None, **kwargs):
         super().__init__(**kwargs)
@@ -43,37 +236,56 @@ class RunDetailScreen(Screen):
         yield Header()
         
         with Container(classes="run-detail-container"):
-            # Top Info Panel
-            with Horizontal(classes="run-info-bar"):
-                yield Label("Run ID: --", classes="info-label", id="label-run-id")
-                yield Label("Target: --", classes="info-label", id="label-target")
-                yield Label("Status: --", classes="status-badge", id="run-status")
-                yield Label("Duration: --", classes="info-label", id="run-duration")
+            # Header Info Bar
+            with Container(classes="run-header"):
+                with Horizontal(classes="run-header-inner"):
+                    yield Label("--", id="lbl-run-id", classes="header-item header-id")
+                    yield Label("--", id="lbl-target", classes="header-item header-target")
+                    yield Label("--", id="lbl-status", classes="header-item header-status")
+                    yield Label("--", id="lbl-duration", classes="header-item header-duration")
 
-            with Horizontal(classes="split-view"):
-                with Container(classes="sidebar-panel"):
-                    yield Label("Pipeline", classes="section-title")
-                    yield ProgressBar(total=100, show_eta=True, classes="pipeline-progress", id="run-progress")
-                    yield DataTable(id="steps-table")
+            # Stats Bar
+            with Horizontal(classes="stats-bar"):
+                with Vertical(classes="stat-card"):
+                    yield Label("0", id="val-subdomains", classes="stat-value")
+                    yield Label("Subdomains", classes="stat-label")
+                with Vertical(classes="stat-card"):
+                    yield Label("0", id="val-dns", classes="stat-value")
+                    yield Label("DNS Resolved", classes="stat-label")
+                with Vertical(classes="stat-card"):
+                    yield Label("0", id="val-live", classes="stat-value")
+                    yield Label("Live Hosts", classes="stat-label")
+                with Vertical(classes="stat-card"):
+                    yield Label("0", id="val-findings", classes="stat-value")
+                    yield Label("Findings", classes="stat-label")
 
-                    with Container(classes="sidebar-controls"):
-                        yield Button("Pause Run", variant="warning", id="btn-pause", classes="control-btn")
-                        yield Button("Cancel Run", variant="error", id="btn-cancel", classes="control-btn")
-                        yield Button("Export Report", variant="primary", id="btn-export", classes="control-btn")
+            # Main Content
+            with Horizontal(classes="main-split"):
+                # Left: Pipeline
+                with Vertical(classes="pipeline-panel"):
+                    with Container(classes="pipeline-header"):
+                        yield Label("Pipeline", classes="pipeline-title")
+                    with Container(classes="pipeline-progress-container"):
+                        yield ProgressBar(total=100, show_eta=False, id="run-progress")
+                    with Container(classes="steps-container"):
+                        yield DataTable(id="steps-table")
+                    with Vertical(classes="pipeline-controls"):
+                        yield Button("Pause", variant="warning", id="btn-pause")
+                        yield Button("Cancel", variant="error", id="btn-cancel")
+                        yield Button("Export", variant="primary", id="btn-export")
 
-                with Container(classes="main-panel"):
+                # Right: Logs/Findings
+                with Container(classes="content-panel"):
                     with TabbedContent():
-                        with TabPane("Live Logs", id="tab-logs"):
+                        with TabPane("Logs", id="tab-logs"):
                             yield RichLog(highlight=True, markup=True, id="run-log")
-
-                        with TabPane("Findings", id="tab-findings"):
+                        with TabPane("Findings (0)", id="tab-findings"):
                             yield DataTable(id="findings-table")
         
         yield Footer()
 
     def on_mount(self) -> None:
         """Initialize widgets and start data loading."""
-        # Check for run_id from init or app
         if not self.run_id:
             self.run_id = getattr(self.app, 'current_run_id', None)
         
@@ -84,12 +296,13 @@ class RunDetailScreen(Screen):
 
         # Setup Findings Table
         findings_table = self.query_one("#findings-table", DataTable)
-        findings_table.add_columns("ID", "Severity", "Type", "Host", "Confidence")
+        findings_table.add_columns("Severity", "Type", "Host", "Tool")
         findings_table.cursor_type = "row"
 
-        # Setup Steps Table
+        # Setup Steps Table (single column, no header)
         steps_table = self.query_one("#steps-table", DataTable)
-        steps_table.add_columns("Step", "Status", "Duration")
+        steps_table.add_columns("Step")
+        steps_table.show_header = False
         
         # Start loading data
         _ = self._load_run_data()
@@ -102,8 +315,6 @@ class RunDetailScreen(Screen):
 
         try:
             db = Database(self._db_path)
-            # No explicit init_db() needed here as app should have done it, 
-            # but connecting handles the connection.
             
             run = db.get_run(self.run_id)
             if not run:
@@ -115,19 +326,20 @@ class RunDetailScreen(Screen):
             findings = db.get_findings_for_run(self.run_id)
             db.close()
 
-            # Update UI components directly (safe within @work async context)
-            self._update_run_header(run)
-            self._update_steps_table(steps)
-            self._update_findings_table(findings)
+            # Update UI
+            self._update_header(run)
+            self._update_stats(steps, len(findings))
+            self._update_steps(steps)
+            self._update_findings(findings)
             self._update_progress(run)
-            self._log_initial_state(run)
-            self._log_step_errors(steps)
+            self._log_initial(run)
 
             # Start polling if active
             if run.state in (RunState.RUNNING, RunState.PENDING, RunState.PAUSED):
                 self._start_polling()
 
         except Exception as e:
+            logger.exception(f"Error loading run data: {e}")
             self.notify(f"Error loading run: {e}", severity="error")
 
     def _start_polling(self) -> None:
@@ -140,17 +352,13 @@ class RunDetailScreen(Screen):
         """Poll database for updates."""
         if not self.run_id or not self._polling:
             return
-
         try:
-            # We can't use @work for the interval callback directly as it spawns too many workers
-            # But we should run DB ops in a worker. 
-            # Ideally set_interval calls a method that calls a worker.
-            _ = self._fetch_updates_worker()
+            _ = self._fetch_updates()
         except Exception as e:
-            logger.debug(f"Polling error (non-fatal): {e}")
+            logger.debug(f"Polling error: {e}")
 
     @work(exclusive=True)
-    async def _fetch_updates_worker(self) -> None:
+    async def _fetch_updates(self) -> None:
         """Worker to fetch updates."""
         try:
             if not self.run_id:
@@ -160,71 +368,57 @@ class RunDetailScreen(Screen):
             run = db.get_run(self.run_id)
             
             if run:
-                # Check if we should stop polling
                 if run.state in (RunState.COMPLETED, RunState.FAILED, RunState.CANCELLED):
                     self._polling = False
                 
-                # Update UI (we're in the same thread with @work)
-                self._update_run_header(run)
+                self._update_header(run)
                 self._update_progress(run)
 
                 steps = db.get_steps(self.run_id)
-                self._update_steps_table(steps)
-
                 findings = db.get_findings_for_run(self.run_id)
-                self._update_findings_table(findings)
+                
+                self._update_stats(steps, len(findings))
+                self._update_steps(steps)
+                self._update_findings(findings)
 
             db.close()
         except Exception as e:
-            logger.warning(f"Error fetching updates for run {self.run_id}: {e}")
+            logger.warning(f"Error fetching updates: {e}")
 
-    def _update_run_header(self, run: RunMetadata) -> None:
-        """Update the top info bar."""
-        self.query_one("#label-run-id", Label).update(f"Run ID: {run.id}")
-        self.query_one("#label-target", Label).update(f"Target: {run.target}")
+    def _update_header(self, run: RunMetadata) -> None:
+        """Update header info bar."""
+        self.query_one("#lbl-run-id", Label).update(run.id[:12])
+        self.query_one("#lbl-target", Label).update(run.target)
         
-        status_label = self.query_one("#run-status", Label)
-        status_label.update(f"Status: {run.state.name}")
+        status_label = self.query_one("#lbl-status", Label)
+        status_label.update(run.state.name)
+        status_label.set_classes(f"header-item header-status {run.state.name.lower()}")
         
-        # Update status classes
-        status_label.set_classes("status-badge")
-        if run.state == RunState.RUNNING:
-            status_label.add_class("running")
-        elif run.state == RunState.COMPLETED:
-            status_label.add_class("success")
-        elif run.state in (RunState.FAILED, RunState.CANCELLED):
-            status_label.add_class("error")
-        elif run.state == RunState.PAUSED:
-            status_label.add_class("warning")
-            
-        # Update duration
-        duration = "00:00:00"
+        # Duration
+        duration = "--:--:--"
         if run.started_at:
             end_time = run.completed_at or datetime.now()
             delta = end_time - run.started_at
-            # Format delta manually to avoid days component if possible or just use str
             total_seconds = int(delta.total_seconds())
             hours, remainder = divmod(total_seconds, 3600)
             minutes, seconds = divmod(remainder, 60)
             duration = f"{hours:02}:{minutes:02}:{seconds:02}"
-            
-        self.query_one("#run-duration", Label).update(f"Duration: {duration}")
+        self.query_one("#lbl-duration", Label).update(duration)
         
-        # Update buttons state based on run state
+        # Buttons
         pause_btn = self.query_one("#btn-pause", Button)
         if run.state == RunState.RUNNING:
-            pause_btn.label = "Pause Run"
+            pause_btn.label = "Pause"
             pause_btn.variant = "warning"
             pause_btn.disabled = False
         elif run.state == RunState.PAUSED:
-            pause_btn.label = "Resume Run"
+            pause_btn.label = "Resume"
             pause_btn.variant = "success"
             pause_btn.disabled = False
         else:
             pause_btn.disabled = True
             
-        cancel_btn = self.query_one("#btn-cancel", Button)
-        cancel_btn.disabled = not run.is_active
+        self.query_one("#btn-cancel", Button).disabled = not run.is_active
 
     def _update_progress(self, run: RunMetadata) -> None:
         """Update progress bar."""
@@ -232,152 +426,133 @@ class RunDetailScreen(Screen):
         if run.total_steps > 0:
             pct = (run.completed_steps / run.total_steps) * 100
             progress_bar.update(progress=pct)
-            
-            # If we know the current running step, we could show it in message
-            # but ProgressBar doesn't support text message easily in standard API 
-            # without custom renderable, so just percentage is fine.
 
-    def _update_steps_table(self, steps: list[PipelineStep]) -> None:
-        """Update the steps table."""
+    def _update_stats(self, steps: list[PipelineStep], findings_count: int) -> None:
+        """Update stats bar."""
+        subdomains = 0
+        dns_resolved = 0
+        live_hosts = 0
+        
+        for step in steps:
+            if step.output_path:
+                count = count_output_items(step.output_path)
+                if step.name == "subdomain_enumeration":
+                    subdomains = count
+                elif step.name == "dns_resolution":
+                    dns_resolved = count
+                elif step.name == "http_probing":
+                    live_hosts = count
+        
+        self.query_one("#val-subdomains", Label).update(str(subdomains))
+        self.query_one("#val-dns", Label).update(str(dns_resolved))
+        self.query_one("#val-live", Label).update(str(live_hosts))
+        self.query_one("#val-findings", Label).update(str(findings_count))
+        
+        # Update tab title with count
+        try:
+            from textual.widgets import TabPane
+            findings_tab = self.query_one("#tab-findings", TabPane)
+            findings_tab.update(f"Findings ({findings_count})")
+        except Exception:
+            pass
+
+    def _update_steps(self, steps: list[PipelineStep]) -> None:
+        """Update steps table."""
         table = self.query_one("#steps-table", DataTable)
         log = self.query_one("#run-log", RichLog)
         
+        # Status icons
+        icons = {
+            StepStatus.COMPLETED: ("✓", "green"),
+            StepStatus.RUNNING: ("●", "cyan"),
+            StepStatus.FAILED: ("✗", "red"),
+            StepStatus.SKIPPED: ("○", "dim"),
+            StepStatus.PENDING: ("○", "dim"),
+        }
+        
         for step in steps:
-            duration_str = "--"
-            if step.duration:
-                duration_str = f"{step.duration:.1f}s"
-            elif step.status == StepStatus.RUNNING and step.started_at:
-                delta = (datetime.now() - step.started_at).total_seconds()
-                duration_str = f"{delta:.1f}s..."
-
-            status_styled = str(step.status.name)
-            if step.status == StepStatus.COMPLETED:
-                status_styled = f"[green]{step.status.name}[/]"
+            icon, color = icons.get(step.status, ("○", "dim"))
+            
+            # Format: icon + name + optional duration
+            if step.status == StepStatus.COMPLETED and step.duration:
+                display = f"[{color}]{icon}[/] {step.name} [dim]({step.duration:.0f}s)[/]"
             elif step.status == StepStatus.RUNNING:
-                status_styled = f"[blue]{step.status.name}[/]"
-            elif step.status == StepStatus.FAILED:
-                status_styled = f"[red]{step.status.name}[/]"
-            elif step.status == StepStatus.SKIPPED:
-                status_styled = f"[dim]{step.status.name}[/]"
-
+                display = f"[{color}]{icon}[/] [bold]{step.name}[/] [dim]...[/]"
+            else:
+                display = f"[{color}]{icon}[/] {step.name}"
+            
             row_key = f"step-{step.name}"
             
             # Log state changes
-            prev_status = self._last_step_states.get(step.name)
-            if prev_status != step.status.name:
+            prev = self._last_step_states.get(step.name)
+            if prev != step.status.name:
                 self._last_step_states[step.name] = step.status.name
                 if step.status == StepStatus.RUNNING:
-                    log.write(f"[blue]INFO[/] Started step: [bold]{step.name}[/]")
+                    log.write(f"[cyan]▶[/] Starting [bold]{step.name}[/]")
                 elif step.status == StepStatus.COMPLETED:
-                    log.write(f"[green]SUCCESS[/] Completed step: [bold]{step.name}[/] ({duration_str})")
+                    dur = f" ({step.duration:.0f}s)" if step.duration else ""
+                    log.write(f"[green]✓[/] Completed [bold]{step.name}[/]{dur}")
                 elif step.status == StepStatus.FAILED:
-                    log.write(f"[red]ERROR[/] Failed step: [bold]{step.name}[/]")
+                    log.write(f"[red]✗[/] Failed [bold]{step.name}[/]")
                     if step.error_message:
-                        log.write(f"[red]Details[/]: {step.error_message}")
+                        log.write(f"  [dim]{step.error_message}[/]")
 
-            # Check if row exists by trying to get its index
+            # Update or add row
             try:
                 table.get_row_index(row_key)
-                # Row exists, update it
-                table.update_cell(row_key, "Status", status_styled)
-                table.update_cell(row_key, "Duration", duration_str)
+                table.update_cell(row_key, "Step", display)
             except Exception:
-                # Row doesn't exist, add it
-                table.add_row(
-                    step.name, 
-                    status_styled, 
-                    duration_str, 
-                    key=row_key
-                )
+                table.add_row(display, key=row_key)
 
-    def _update_findings_table(self, findings: list[Finding]) -> None:
-        """Update findings table with new entries."""
+    def _update_findings(self, findings: list[Finding]) -> None:
+        """Update findings table."""
         table = self.query_one("#findings-table", DataTable)
         log = self.query_one("#run-log", RichLog)
         
-        color_map = {
+        colors = {
             Severity.CRITICAL: "red",
             Severity.HIGH: "orange1",
             Severity.MEDIUM: "yellow",
             Severity.LOW: "blue",
-            Severity.INFO: "white"
+            Severity.INFO: "dim",
         }
 
         for finding in findings:
             if finding.id not in self._seen_finding_ids:
                 self._seen_finding_ids.add(finding.id)
                 
-                color = color_map.get(finding.severity, "white")
-                sev_display = f"[{color}]{finding.severity.value.upper()}[/]"
+                color = colors.get(finding.severity, "white")
+                sev = f"[{color}]{finding.severity.value.upper()}[/]"
                 
                 table.add_row(
-                    finding.id[:8], # Short ID
-                    sev_display,
-                    finding.type,
-                    finding.host,
-                    finding.confidence.value,
+                    sev,
+                    finding.type[:30],
+                    finding.host[:40],
+                    finding.tool,
                     key=finding.id
                 )
                 
-                # Log high severity findings
+                # Alert on critical/high
                 if finding.severity in (Severity.CRITICAL, Severity.HIGH):
-                    log.write(f"[{color}]ALERT[/] Found {finding.severity.value.upper()} vulnerability: {finding.type} on {finding.host}")
-                    self.notify(f"New {finding.severity.value} finding: {finding.type}")
+                    log.write(f"[{color}]⚠[/] {finding.severity.value.upper()}: {finding.type} @ {finding.host}")
 
-    def _log_initial_state(self, run: RunMetadata) -> None:
-        """Log initial run info."""
+    def _log_initial(self, run: RunMetadata) -> None:
+        """Log initial state."""
         log = self.query_one("#run-log", RichLog)
-        log.write(f"[green]INFO[/] Monitor attached to run {run.id}")
-        log.write(f"[blue]INFO[/] Target: {run.target}")
-        log.write(f"[blue]INFO[/] Profile: {run.profile}")
-        log.write(f"[blue]INFO[/] State: {run.state.name}")
-        
-        if run.state == RunState.FAILED:
-            log.write(f"[red]ERROR[/] Run failed")
-        elif run.state == RunState.COMPLETED:
-            log.write(f"[green]SUCCESS[/] Run completed with {run.total_findings} findings")
-        elif run.state == RunState.RUNNING:
-            log.write(f"[blue]INFO[/] Run is currently in progress...")
-        elif run.state == RunState.PENDING:
-            log.write(f"[yellow]INFO[/] Run is pending start...")
-
-    def _log_step_errors(self, steps: list[PipelineStep]) -> None:
-        """Log step status to the live log."""
-        log = self.query_one("#run-log", RichLog)
-        for step in steps:
-            if step.status == StepStatus.COMPLETED:
-                duration = f"{step.duration:.1f}s" if step.duration else "--"
-                log.write(f"[green]COMPLETED[/] Step [bold]{step.name}[/] ({duration}) - {step.findings_count} items")
-                if step.output_path and step.output_path.exists():
-                    try:
-                        content = step.output_path.read_text()
-                        lines = content.strip().split('\n')[:5]
-                        for line in lines:
-                            log.write(f"  [dim]{line[:80]}[/]")
-                        if len(content.strip().split('\n')) > 5:
-                            log.write(f"  [dim]... and more[/]")
-                    except Exception:
-                        pass
-            elif step.status == StepStatus.FAILED:
-                log.write(f"[red]FAILED[/] Step [bold]{step.name}[/]: {step.error_message or 'Unknown error'}")
-            elif step.status == StepStatus.SKIPPED:
-                log.write(f"[yellow]SKIPPED[/] Step [bold]{step.name}[/]: {step.error_message or 'Dependencies not met'}")
-            elif step.status == StepStatus.RUNNING:
-                log.write(f"[blue]RUNNING[/] Step [bold]{step.name}[/]...")
+        log.write(f"[dim]─── Run Monitor ───[/]")
+        log.write(f"Target: [bold]{run.target}[/]")
+        log.write(f"Profile: {run.profile}")
+        log.write(f"State: {run.state.name}")
+        log.write("")
         
     def action_toggle_pause(self) -> None:
-        """Pause or resume the run."""
-        # For MVP without direct Orchestrator access, we just update local UI state 
-        # and notify. In a real app, this would send a command to the daemon/backend.
-        # Since I can't easily reach the backend process from here without an API or shared object,
-        # I will leave a TODO note and show notification.
-        
-        # Attempt to check if we can update DB state directly as a signal
-        # (Though Orchestrator might overwrite it, it's a way to signal if Orchestrator watches DB)
-        
-        self.notify("Control commands not yet wired to backend daemon.", severity="warning")
+        self.notify("Control commands not yet implemented", severity="warning")
 
     def action_cancel_run(self) -> None:
-        """Cancel the current run."""
         self.notify("Sending cancel signal...", severity="warning")
-        # Similar to pause, needs IPC or DB signal.
+
+    def action_focus_logs(self) -> None:
+        self.query_one("#run-log").focus()
+
+    def action_focus_findings(self) -> None:
+        self.query_one("#findings-table").focus()
