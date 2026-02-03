@@ -107,6 +107,10 @@ class ProfilesScreen(Screen):
     
     CSS_PATH = "../styles/main.tcss" # Reusing main styles + local if needed
     
+    BINDINGS = [
+        ("escape", "app.pop_screen", "Back"),
+    ]
+    
     # Reactive state to track currently selected profile ID
     current_profile_id: reactive[Optional[str]] = reactive(None)
 
@@ -175,9 +179,13 @@ class ProfilesScreen(Screen):
         list_view = self.query_one("#profiles-list", ListView)
         list_view.clear()
         
-        for profile in self.manager.get_all():
-            item = ListItem(Label(profile.name), id=f"profile-item-{profile.id}")
-            list_view.append(item)
+        # Schedule repopulation after clear completes to avoid DuplicateIds
+        def populate() -> None:
+            for profile in self.manager.get_all():
+                item = ListItem(Label(profile.name), id=f"profile-item-{profile.id}")
+                list_view.append(item)
+        
+        self.call_after_refresh(populate)
 
     def _load_profile(self, profile_id: str) -> None:
         """Load profile data into the form."""

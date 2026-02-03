@@ -179,6 +179,7 @@ class ScopeEditorScreen(Screen):
         files = self.get_scope_files()
         
         first_valid = None
+        items_to_add = []
 
         for path in files:
             try:
@@ -194,7 +195,7 @@ class ScopeEditorScreen(Screen):
                 
                 # Create list item with path as ID (sanitized)
                 safe_id = f"scope-{path.name.replace('.', '_')}"
-                list_view.append(ListItem(Label(target), id=safe_id))
+                items_to_add.append((target, safe_id, path))
                 
                 if not first_valid:
                     first_valid = path
@@ -202,6 +203,13 @@ class ScopeEditorScreen(Screen):
             except Exception:
                 # Skip invalid files
                 continue
+        
+        # Schedule repopulation after clear completes to avoid DuplicateIds
+        def populate() -> None:
+            for target, safe_id, _ in items_to_add:
+                list_view.append(ListItem(Label(target), id=safe_id))
+        
+        self.call_after_refresh(populate)
         
         # Select first if available and nothing selected
         if first_valid and not self.current_scope_path:
