@@ -1,0 +1,53 @@
+# Dependency Registry for GaleHunTUI
+# Defines wordlists and templates for security testing
+
+dependencies:
+  nuclei-templates:
+    name: "Nuclei Templates"
+    type: "templates"
+    source: "git"
+    url: "https://github.com/projectdiscovery/nuclei-templates"
+    branch: "main"
+    description: "Community curated vulnerability templates for nuclei scanner"
+    required: true
+    size_estimate: "~500MB"
+
+  seclists:
+    name: "SecLists"
+    type: "wordlists"
+    source: "git"
+    url: "https://github.com/danielmiessler/SecLists"
+    branch: "master"
+    description: "Security tester's companion wordlists collection"
+    required: false
+    size_estimate: "~1GB"
+
+  fuzzdb:
+    name: "FuzzDB"
+    type: "wordlists"
+    source: "git"
+    url: "https://github.com/fuzzdb-project/fuzzdb"
+    branch: "master"
+    description: "Attack patterns and discovery resources for fuzzing"
+    required: false
+    size_estimate: "~100MB"
+
+  payloads-all-the-things:
+    name: "PayloadsAllTheThings"
+    type: "wordlists"
+    source: "git"
+    url: "https://github.com/swisskyrepo/PayloadsAllTheThings"
+    branch: "master"
+    description: "Useful payloads and bypass techniques for various applications"
+    required: false
+    size_estimate: "~50MB"
+
+  assetnote-wordlists:
+    name: "Assetnote Wordlists"
+    type: "wordlists"
+    source: "git"
+    url: "https://github.com/assetnote/wordlists"
+    branch: "main"
+    description: "High-quality wordlists for content and subdomain discovery"
+    required: false
+    size_estimate: "~200MB"

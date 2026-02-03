@@ -52,3 +52,7 @@ class RunnerError(GaleHunTUIError):
 class DockerNotAvailableError(RunnerError):
     """Docker is not available or not running."""
     pass
+
+class DependencyError(GaleHunTUIError):
+    """Dependency management operation failed."""
+    pass
