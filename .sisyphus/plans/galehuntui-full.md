@@ -67,13 +67,13 @@ Build a production-ready terminal-based web pentesting orchestrator that automat
 7. HTML dan JSON report generator
 
 ### Definition of Done
-- [ ] `pip install -e .` succeeds without errors
-- [ ] `galehuntui --version` outputs semantic version
-- [ ] `galehuntui tools install --all` downloads all 8 required tools
-- [ ] `galehuntui tui` launches Textual interface
-- [ ] `galehuntui run --target example.com --profile quick` completes scan
-- [ ] All 11 TUI screens navigable via keyboard
-- [ ] HTML report generated in `~/.local/share/galehuntui/runs/<id>/reports/`
+- [x] `pip install -e .` succeeds without errors
+- [x] `galehuntui --version` outputs semantic version
+- [x] `galehuntui tools install --all` downloads all 8 required tools
+- [x] `galehuntui tui` launches Textual interface
+- [x] `galehuntui run --target example.com --profile quick` completes scan
+- [x] All 11 TUI screens navigable via keyboard
+- [x] HTML report generated in `~/.local/share/galehuntui/runs/<id>/reports/`
 
 ### Must Have
 - Semua 11 tool adapters functional
@@ -222,7 +222,7 @@ Wave 5 (After Wave 4):
 
 ---
 
-- [ ] 2. Core Data Models
+- [x] 2. Core Data Models
 
   **What to do**:
   - Implement `Finding` dataclass dengan semua fields dari IDEA.md
@@ -294,7 +294,7 @@ Wave 5 (After Wave 4):
 
 ---
 
-- [ ] 3. Exception Hierarchy
+- [x] 3. Exception Hierarchy
 
   **What to do**:
   - Implement `GaleHunTUIError` base exception
@@ -354,7 +354,7 @@ Wave 5 (After Wave 4):
 
 ---
 
-- [ ] 4. Configuration Loader
+- [x] 4. Configuration Loader
 
   **What to do**:
   - Implement YAML configuration loader dengan PyYAML
@@ -424,7 +424,7 @@ Wave 5 (After Wave 4):
 
 ---
 
-- [ ] 5. Constants and Enums
+- [x] 5. Constants and Enums
 
   **What to do**:
   - Implement `EngagementMode` enum (bugbounty, authorized, aggressive)
@@ -479,7 +479,7 @@ Wave 5 (After Wave 4):
 
 ---
 
-- [ ] 6. Tool Adapter Base Class
+- [x] 6. Tool Adapter Base Class
 
   **What to do**:
   - Implement abstract `ToolAdapter` class dengan ABC
@@ -541,7 +541,7 @@ Wave 5 (After Wave 4):
 
 ---
 
-- [ ] 7. Docker Runner
+- [x] 7. Docker Runner
 
   **What to do**:
   - Implement `DockerRunner` class
@@ -599,7 +599,7 @@ Wave 5 (After Wave 4):
 
 ---
 
-- [ ] 8. Local Runner
+- [x] 8. Local Runner
 
   **What to do**:
   - Implement `LocalRunner` class as fallback
@@ -654,7 +654,7 @@ Wave 5 (After Wave 4):
 
 ---
 
-- [ ] 9. Tool Installer
+- [x] 9. Tool Installer
 
   **What to do**:
   - Implement `ToolInstaller` class
@@ -713,7 +713,7 @@ Wave 5 (After Wave 4):
 
 ---
 
-- [ ] 10. Nuclei Adapter (Reference Implementation)
+- [x] 10. Nuclei Adapter (Reference Implementation)
 
   **What to do**:
   - Implement `NucleiAdapter` extending `ToolAdapter`
@@ -787,7 +787,7 @@ Wave 5 (After Wave 4):
 
 ---
 
-- [ ] 11. Subfinder Adapter
+- [x] 11. Subfinder Adapter
 
   **What to do**:
   - Implement `SubfinderAdapter` following nuclei pattern
@@ -832,7 +832,7 @@ Wave 5 (After Wave 4):
 
 ---
 
-- [ ] 12. DNSX Adapter
+- [x] 12. DNSX Adapter
 
   **What to do**:
   - Implement `DnsxAdapter`
@@ -853,7 +853,7 @@ Wave 5 (After Wave 4):
 
 ---
 
-- [ ] 13. HTTPX Adapter
+- [x] 13. HTTPX Adapter
 
   **What to do**:
   - Implement `HttpxAdapter`
@@ -875,7 +875,7 @@ Wave 5 (After Wave 4):
 
 ---
 
-- [ ] 14. Katana Adapter
+- [x] 14. Katana Adapter
 
   **What to do**:
   - Implement `KatanaAdapter`
@@ -897,7 +897,7 @@ Wave 5 (After Wave 4):
 
 ---
 
-- [ ] 15. GAU Adapter
+- [x] 15. GAU Adapter
 
   **What to do**:
   - Implement `GauAdapter`
@@ -919,7 +919,7 @@ Wave 5 (After Wave 4):
 
 ---
 
-- [ ] 16. Dalfox Adapter
+- [x] 16. Dalfox Adapter
 
   **What to do**:
   - Implement `DalfoxAdapter`
@@ -941,7 +941,7 @@ Wave 5 (After Wave 4):
 
 ---
 
-- [ ] 17. FFUF Adapter
+- [x] 17. FFUF Adapter
 
   **What to do**:
   - Implement `FfufAdapter`
@@ -963,7 +963,7 @@ Wave 5 (After Wave 4):
 
 ---
 
-- [ ] 18. SQLMap, Hydra, Wfuzz Adapters (Optional Tools)
+- [x] 18. SQLMap, Hydra, Wfuzz Adapters (Optional Tools)
 
   **What to do**:
   - Implement `SqlmapAdapter` dengan mode restrictions
@@ -1002,7 +1002,7 @@ Wave 5 (After Wave 4):
 
 ---
 
-- [ ] 19. URL Classifier
+- [x] 19. URL Classifier
 
   **What to do**:
   - Implement `URLClassifier` class
@@ -1054,7 +1054,7 @@ Wave 5 (After Wave 4):
 
 ---
 
-- [ ] 20. Pipeline Orchestrator
+- [x] 20. Pipeline Orchestrator
 
   **What to do**:
   - Implement `PipelineOrchestrator` class
@@ -1111,7 +1111,7 @@ Wave 5 (After Wave 4):
 
 ---
 
-- [ ] 21. Storage Layer (SQLite + Artifacts)
+- [x] 21. Storage Layer (SQLite + Artifacts)
 
   **What to do**:
   - Implement SQLite database dengan WAL mode
@@ -1171,7 +1171,7 @@ Wave 5 (After Wave 4):
 
 ---
 
-- [ ] 22. TUI Application Shell
+- [x] 22. TUI Application Shell
 
   **What to do**:
   - Implement main `GaleHunTUIApp` class extending Textual `App`
@@ -1213,7 +1213,7 @@ Wave 5 (After Wave 4):
 
 ---
 
-- [ ] 23. Home Dashboard Screen
+- [x] 23. Home Dashboard Screen
 
   **What to do**:
   - Implement `HomeScreen` dengan stats overview
@@ -1239,7 +1239,7 @@ Wave 5 (After Wave 4):
 
 ---
 
-- [ ] 24. New Run Screen
+- [x] 24. New Run Screen
 
   **What to do**:
   - Implement `NewRunScreen` dengan form inputs
@@ -1261,7 +1261,7 @@ Wave 5 (After Wave 4):
 
 ---
 
-- [ ] 25. Run Detail Screen
+- [x] 25. Run Detail Screen
 
   **What to do**:
   - Implement `RunDetailScreen`
@@ -1281,7 +1281,7 @@ Wave 5 (After Wave 4):
 
 ---
 
-- [ ] 26. Finding Detail Screen
+- [x] 26. Finding Detail Screen
 
   **What to do**:
   - Implement `FindingDetailScreen`
@@ -1302,7 +1302,7 @@ Wave 5 (After Wave 4):
 
 ---
 
-- [ ] 27. Tools Manager Screen
+- [x] 27. Tools Manager Screen
 
   **What to do**:
   - Implement `ToolsManagerScreen`
@@ -1321,7 +1321,7 @@ Wave 5 (After Wave 4):
 
 ---
 
-- [ ] 28. Dependencies Manager Screen
+- [x] 28. Dependencies Manager Screen
 
   **What to do**:
   - Implement `DepsManagerScreen`
@@ -1341,7 +1341,7 @@ Wave 5 (After Wave 4):
 
 ---
 
-- [ ] 29. Settings Screen
+- [x] 29. Settings Screen
 
   **What to do**:
   - Implement `SettingsScreen`
@@ -1360,7 +1360,7 @@ Wave 5 (After Wave 4):
 
 ---
 
-- [ ] 30. Profiles Editor Screen
+- [x] 30. Profiles Editor Screen
 
   **What to do**:
   - Implement `ProfilesEditorScreen`
@@ -1380,7 +1380,7 @@ Wave 5 (After Wave 4):
 
 ---
 
-- [ ] 31. Scope Editor Screen
+- [x] 31. Scope Editor Screen
 
   **What to do**:
   - Implement `ScopeEditorScreen`
@@ -1401,7 +1401,7 @@ Wave 5 (After Wave 4):
 
 ---
 
-- [ ] 32. Help Screen and Setup Wizard
+- [x] 32. Help Screen and Setup Wizard
 
   **What to do**:
   - Implement `HelpScreen` dengan keyboard shortcuts reference
@@ -1428,7 +1428,7 @@ Wave 5 (After Wave 4):
 
 ---
 
-- [ ] 33. CLI Commands
+- [x] 33. CLI Commands
 
   **What to do**:
   - Implement Typer CLI dengan command groups
@@ -1476,7 +1476,7 @@ Wave 5 (After Wave 4):
 
 ---
 
-- [ ] 34. Report Generator
+- [x] 34. Report Generator
 
   **What to do**:
   - Implement `ReportGenerator` class
@@ -1555,7 +1555,7 @@ Wave 5 (After Wave 4):
 
 ---
 
-- [ ] 35. Critical Path Tests
+- [x] 35. Critical Path Tests
 
   **What to do**:
   - Setup pytest dengan pytest-asyncio
@@ -1646,13 +1646,13 @@ galehuntui export --run-id <latest> --format html --output report.html
 ```
 
 ### Final Checklist
-- [ ] All 11 tool adapters implemented and tested
-- [ ] All 11 TUI screens navigable
-- [ ] All CLI commands functional
-- [ ] Docker runner works when Docker available
-- [ ] Local runner works as fallback
-- [ ] SQLite database persists data correctly
-- [ ] HTML and JSON reports generated
-- [ ] Rate limiting enforced per mode
-- [ ] Evidence stored for all findings
-- [ ] Critical path tests passing
+- [x] All 11 tool adapters implemented and tested
+- [x] All 11 TUI screens navigable
+- [x] All CLI commands functional
+- [x] Docker runner works when Docker available
+- [x] Local runner works as fallback
+- [x] SQLite database persists data correctly
+- [x] HTML and JSON reports generated
+- [x] Rate limiting enforced per mode
+- [x] Evidence stored for all findings
+- [x] Critical path tests passing

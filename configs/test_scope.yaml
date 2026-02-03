@@ -1,0 +1,12 @@
+target:
+  domain: example.com
+scope:
+  allowlist:
+    - "*.example.com"
+  denylist:
+    - "admin.example.com"
+  exclusions:
+    paths:
+      - "/logout"
+    extensions:
+      - ".pdf"
