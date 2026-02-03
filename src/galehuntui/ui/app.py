@@ -1,6 +1,8 @@
 from pathlib import Path
 from typing import Any, Optional, Type
 
+import yaml
+
 from textual.app import App
 from textual.driver import Driver
 from textual.screen import Screen
@@ -19,6 +21,7 @@ from galehuntui.ui.screens.setup import SetupWizardScreen
 
 from galehuntui.core.config import get_data_dir
 from galehuntui.storage.database import Database
+from galehuntui.ui.themes import GALEHUNT_THEMES
 
 
 class GaleHunTUIApp(App):
@@ -27,7 +30,7 @@ class GaleHunTUIApp(App):
 
     BINDINGS = [
         ("q", "quit", "Quit"),
-        ("d", "toggle_dark", "Toggle Dark Mode"),
+        ("ctrl+shift+t", "cycle_themes", "Cycle Themes"),
         ("question_mark", "push_screen('help')", "Help"),
         ("ctrl+n", "push_screen('new_run')", "New Run"),
         ("ctrl+t", "push_screen('tools_manager')", "Tools"),
@@ -59,9 +62,17 @@ class GaleHunTUIApp(App):
         self.config_path = config_path
         self.db: Database | None = None
         self.current_run_id: Optional[str] = None
+        self._theme_names = list(GALEHUNT_THEMES.keys())
 
     def on_mount(self) -> None:
         self.title = "GaleHunTUI"
+        
+        for theme in GALEHUNT_THEMES.values():
+            self.register_theme(theme)
+        
+        saved_theme = self._load_theme_from_config()
+        self.theme = saved_theme
+        
         self._init_database()
         self.push_screen("home")
 
@@ -73,6 +84,51 @@ class GaleHunTUIApp(App):
             self.db.init_db()
         except Exception:
             self.db = None
+
+    def _load_theme_from_config(self) -> str:
+        LEGACY_THEME_MAPPING = {
+            "Dark": "phantom",
+            "Light": "manuscript",
+            "System": "phantom",
+        }
+        DEFAULT_THEME = "phantom"
+        
+        try:
+            config_path = Path.home() / ".config" / "galehuntui" / "config.yaml"
+            
+            if not config_path.exists():
+                return DEFAULT_THEME
+            
+            with config_path.open("r") as f:
+                config = yaml.safe_load(f)
+            
+            if not config:
+                return DEFAULT_THEME
+            
+            theme_value = config.get("theme", DEFAULT_THEME)
+            
+            if theme_value in LEGACY_THEME_MAPPING:
+                return LEGACY_THEME_MAPPING[theme_value]
+            
+            if theme_value in GALEHUNT_THEMES:
+                return theme_value
+            
+            return DEFAULT_THEME
+            
+        except Exception:
+            return DEFAULT_THEME
+
+    def action_cycle_themes(self) -> None:
+        try:
+            current_idx = self._theme_names.index(self.theme)
+            next_idx = (current_idx + 1) % len(self._theme_names)
+            new_theme = self._theme_names[next_idx]
+            
+            self.theme = new_theme
+            self.notify(f"Theme: {new_theme.title()}")
+        except (ValueError, IndexError):
+            self.theme = self._theme_names[0]
+            self.notify(f"Theme: {self._theme_names[0].title()}")
 
 if __name__ == "__main__":
     app = GaleHunTUIApp()
