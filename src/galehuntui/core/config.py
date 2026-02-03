@@ -18,27 +18,97 @@ from galehuntui.core.models import (
 
 
 # ============================================================================
-# Configuration Paths
+# Configuration Paths - WORKSPACE ISOLATED
 # ============================================================================
+# All paths are relative to the project workspace. NO user home directories.
+# This ensures portability and clean isolated environments.
+
+def get_project_root() -> Path:
+    """Get the project root directory (workspace).
+    
+    The project root is determined by traversing up from this file
+    to find the directory containing pyproject.toml or src/.
+    
+    Returns:
+        Path to project root directory
+    """
+    # Get project root (3 levels up from this file: core/ -> galehuntui/ -> src/ -> root)
+    return Path(__file__).parent.parent.parent.parent
+
 
 def get_config_dir() -> Path:
     """Get the configuration directory path.
     
     Returns:
-        Path to configs directory (./configs relative to project root)
+        Path to configs directory ({project_root}/configs)
     """
-    # Get project root (3 levels up from this file: core/ -> galehuntui/ -> src/ -> root)
-    project_root = Path(__file__).parent.parent.parent.parent
-    return project_root / "configs"
+    return get_project_root() / "configs"
 
 
 def get_data_dir() -> Path:
     """Get the data directory path.
     
+    All application data is stored within the workspace for isolation.
+    
     Returns:
-        Path to data directory (~/.local/share/galehuntui)
+        Path to data directory ({project_root}/data)
     """
-    return Path.home() / ".local" / "share" / "galehuntui"
+    data_dir = get_project_root() / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    return data_dir
+
+
+def get_user_config_path() -> Path:
+    """Get the user configuration file path.
+    
+    Returns:
+        Path to user config file ({project_root}/config.yaml)
+    """
+    return get_project_root() / "config.yaml"
+
+
+def get_logs_dir() -> Path:
+    """Get the logs directory path.
+    
+    Returns:
+        Path to logs directory ({project_root}/data/logs)
+    """
+    logs_dir = get_data_dir() / "logs"
+    logs_dir.mkdir(parents=True, exist_ok=True)
+    return logs_dir
+
+
+def get_runs_dir() -> Path:
+    """Get the runs directory path.
+    
+    Returns:
+        Path to runs directory ({project_root}/data/runs)
+    """
+    runs_dir = get_data_dir() / "runs"
+    runs_dir.mkdir(parents=True, exist_ok=True)
+    return runs_dir
+
+
+def get_deps_dir() -> Path:
+    """Get the dependencies directory path.
+    
+    Returns:
+        Path to deps directory ({project_root}/data/deps)
+    """
+    deps_dir = get_data_dir() / "deps"
+    deps_dir.mkdir(parents=True, exist_ok=True)
+    return deps_dir
+
+
+def get_plugins_dir() -> Path:
+    """Get the plugins directory path.
+    
+    Returns:
+        Path to plugins directory ({project_root}/data/plugins)
+    """
+    plugins_dir = get_data_dir() / "plugins"
+    plugins_dir.mkdir(parents=True, exist_ok=True)
+    return plugins_dir
 
 
 # ============================================================================
