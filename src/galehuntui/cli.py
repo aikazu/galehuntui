@@ -36,11 +36,13 @@ app = typer.Typer(
 tools_app = typer.Typer(help="Manage external pentesting tools")
 deps_app = typer.Typer(help="Manage dependencies (wordlists, templates)")
 runs_app = typer.Typer(help="Manage scan runs")
+plugins_app = typer.Typer(help="Manage plugins")
 
 # Register sub-apps
 app.add_typer(tools_app, name="tools")
 app.add_typer(deps_app, name="deps")
 app.add_typer(runs_app, name="runs")
+app.add_typer(plugins_app, name="plugins")
 
 # Rich console for output
 console = Console()
@@ -584,6 +586,173 @@ def runs_delete(
         
     except Exception as e:
         console.print(f"[red]Error deleting run:[/red] {e}")
+        raise typer.Exit(code=1)
+
+
+# ============================================================================
+# Plugins Commands
+# ============================================================================
+
+@plugins_app.command("list")
+def plugins_list() -> None:
+    """List discovered plugins."""
+    try:
+        from galehuntui.plugins import PluginManager
+        
+        manager = PluginManager()
+        manager.discover()
+        
+        plugins = manager.list_plugins()
+        
+        if not plugins:
+            console.print("[yellow]No plugins discovered.[/yellow]")
+            console.print(f"[dim]Plugin directory: ~/.local/share/galehuntui/plugins/[/dim]")
+            return
+        
+        table = Table(title="Discovered Plugins")
+        table.add_column("Name", style="cyan")
+        table.add_column("Version", style="green")
+        table.add_column("Description", style="white")
+        table.add_column("State", style="yellow")
+        
+        for metadata in plugins:
+            info = manager.get_plugin_info(metadata.name)
+            state = info.plugin.state.value if info else "unknown"
+            table.add_row(
+                metadata.name,
+                metadata.version,
+                metadata.description[:50] + "..." if len(metadata.description) > 50 else metadata.description,
+                state,
+            )
+        
+        console.print(table)
+        
+    except Exception as e:
+        console.print(f"[red]Error listing plugins:[/red] {e}")
+        raise typer.Exit(code=1)
+
+
+@plugins_app.command("enable")
+def plugins_enable(
+    name: str = typer.Argument(..., help="Plugin name to enable"),
+) -> None:
+    """Enable a plugin."""
+    try:
+        from galehuntui.plugins import PluginManager
+        
+        manager = PluginManager()
+        manager.discover()
+        
+        if manager.enable(name):
+            console.print(f"[green]✓[/green] Plugin '{name}' enabled")
+        else:
+            console.print(f"[red]Error:[/red] Failed to enable plugin '{name}'")
+            raise typer.Exit(code=1)
+        
+    except Exception as e:
+        console.print(f"[red]Error enabling plugin:[/red] {e}")
+        raise typer.Exit(code=1)
+
+
+@plugins_app.command("disable")
+def plugins_disable(
+    name: str = typer.Argument(..., help="Plugin name to disable"),
+) -> None:
+    """Disable a plugin."""
+    try:
+        from galehuntui.plugins import PluginManager
+        
+        manager = PluginManager()
+        manager.discover()
+        
+        if manager.disable(name):
+            console.print(f"[green]✓[/green] Plugin '{name}' disabled")
+        else:
+            console.print(f"[red]Error:[/red] Failed to disable plugin '{name}'")
+            raise typer.Exit(code=1)
+        
+    except Exception as e:
+        console.print(f"[red]Error disabling plugin:[/red] {e}")
+        raise typer.Exit(code=1)
+
+
+@plugins_app.command("info")
+def plugins_info(
+    name: str = typer.Argument(..., help="Plugin name"),
+) -> None:
+    """Show detailed information about a plugin."""
+    try:
+        from galehuntui.plugins import PluginManager
+        
+        manager = PluginManager()
+        manager.discover()
+        
+        info = manager.get_plugin_info(name)
+        if not info:
+            console.print(f"[red]Error:[/red] Plugin '{name}' not found")
+            raise typer.Exit(code=1)
+        
+        plugin = info.plugin
+        metadata = plugin.metadata
+        
+        console.print(Panel(
+            f"[bold]Name:[/bold] {metadata.name}\n"
+            f"[bold]Version:[/bold] {metadata.version}\n"
+            f"[bold]Description:[/bold] {metadata.description}\n"
+            f"[bold]Author:[/bold] {metadata.author or 'Unknown'}\n"
+            f"[bold]Homepage:[/bold] {metadata.homepage or 'N/A'}\n"
+            f"[bold]License:[/bold] {metadata.license or 'N/A'}\n"
+            f"[bold]State:[/bold] {plugin.state.value}\n"
+            f"[bold]Source:[/bold] {info.source}\n"
+            f"[bold]Tool:[/bold] {plugin.tool_name}",
+            title=f"Plugin: {name}",
+        ))
+        
+    except Exception as e:
+        console.print(f"[red]Error showing plugin info:[/red] {e}")
+        raise typer.Exit(code=1)
+
+
+@plugins_app.command("validate")
+def plugins_validate(
+    name: Optional[str] = typer.Argument(None, help="Plugin name (all if not specified)"),
+) -> None:
+    """Validate plugin(s) environment requirements."""
+    try:
+        from galehuntui.plugins import PluginManager
+        
+        manager = PluginManager()
+        manager.discover()
+        
+        if name:
+            valid, message = manager.validate(name)
+            if valid:
+                console.print(f"[green]✓[/green] Plugin '{name}' validated successfully")
+            else:
+                console.print(f"[red]✗[/red] Plugin '{name}' validation failed: {message}")
+                raise typer.Exit(code=1)
+        else:
+            results = manager.validate_all()
+            
+            table = Table(title="Plugin Validation Results")
+            table.add_column("Plugin", style="cyan")
+            table.add_column("Valid", style="green")
+            table.add_column("Message", style="yellow")
+            
+            all_valid = True
+            for plugin_name, (valid, message) in results.items():
+                status = "[green]✓[/green]" if valid else "[red]✗[/red]"
+                table.add_row(plugin_name, status, message or "OK")
+                if not valid:
+                    all_valid = False
+            
+            console.print(table)
+            
+            if not all_valid:
+                raise typer.Exit(code=1)
+        
+    except Exception as e:
+        console.print(f"[red]Error validating plugins:[/red] {e}")
         raise typer.Exit(code=1)
 
 
