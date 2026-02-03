@@ -2,6 +2,7 @@ from pathlib import Path
 from typing import Dict, Any, Optional
 import yaml
 
+from textual import work
 from textual.app import ComposeResult
 from textual.screen import Screen
 from textual.widgets import (
@@ -142,7 +143,7 @@ class ScopeEditorScreen(Screen):
 
     def on_mount(self) -> None:
         """Initialize the screen with data."""
-        self.load_scopes()
+        _ = self.load_scopes()
 
     def get_scope_files(self) -> list[Path]:
         """Find all scope YAML files in configuration directories."""
@@ -170,16 +171,18 @@ class ScopeEditorScreen(Screen):
                 
         return sorted(list(set(scope_files)))
 
-    def load_scopes(self) -> None:
+    @work(exclusive=True)
+    async def load_scopes(self) -> None:
         """Load scope files into the list."""
         list_view = self.query_one("#scope-list", ListView)
-        list_view.clear()
+        
+        # Await clear to ensure DOM is updated before adding new items
+        await list_view.clear()
         
         self._scope_cache.clear()
         files = self.get_scope_files()
         
         first_valid = None
-        items_to_add = []
 
         for path in files:
             try:
@@ -195,7 +198,7 @@ class ScopeEditorScreen(Screen):
                 
                 # Create list item with path as ID (sanitized)
                 safe_id = f"scope-{path.name.replace('.', '_')}"
-                items_to_add.append((target, safe_id, path))
+                list_view.append(ListItem(Label(target), id=safe_id))
                 
                 if not first_valid:
                     first_valid = path
@@ -203,13 +206,6 @@ class ScopeEditorScreen(Screen):
             except Exception:
                 # Skip invalid files
                 continue
-        
-        # Schedule repopulation after clear completes to avoid DuplicateIds
-        def populate() -> None:
-            for target, safe_id, _ in items_to_add:
-                list_view.append(ListItem(Label(target), id=safe_id))
-        
-        self.call_after_refresh(populate)
         
         # Select first if available and nothing selected
         if first_valid and not self.current_scope_path:
@@ -302,7 +298,7 @@ class ScopeEditorScreen(Screen):
             self.notify(f"Scope saved to {save_path.name}")
             
             # Refresh list and select the saved item
-            self.load_scopes()
+            _ = self.load_scopes()
             
             # Update selection to the file we just saved
             # (Requires re-finding the path in the cache/list)

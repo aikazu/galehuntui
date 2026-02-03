@@ -1,4 +1,4 @@
-from textual import on
+from textual import on, work
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical, Container
 from textual.screen import Screen
@@ -161,7 +161,7 @@ class ProfilesScreen(Screen):
 
     def on_mount(self) -> None:
         """Initialize the screen data."""
-        self._refresh_list()
+        _ = self._refresh_list()
         
         # Populate tools selection list (static for now)
         steps_list = self.query_one("#list-steps", SelectionList)
@@ -174,18 +174,18 @@ class ProfilesScreen(Screen):
             self.query_one("#profiles-list", ListView).index = 0
             self._load_profile(profiles[0].id)
 
-    def _refresh_list(self) -> None:
+    @work(exclusive=True)
+    async def _refresh_list(self) -> None:
         """Re-render the profiles list."""
         list_view = self.query_one("#profiles-list", ListView)
-        list_view.clear()
         
-        # Schedule repopulation after clear completes to avoid DuplicateIds
-        def populate() -> None:
-            for profile in self.manager.get_all():
-                item = ListItem(Label(profile.name), id=f"profile-item-{profile.id}")
-                list_view.append(item)
+        # Await clear to ensure DOM is updated before adding new items
+        await list_view.clear()
         
-        self.call_after_refresh(populate)
+        # Now safe to add items
+        for profile in self.manager.get_all():
+            item = ListItem(Label(profile.name), id=f"profile-item-{profile.id}")
+            list_view.append(item)
 
     def _load_profile(self, profile_id: str) -> None:
         """Load profile data into the form."""
@@ -268,7 +268,7 @@ class ProfilesScreen(Screen):
             self.notify(f"Profile '{profile.name}' saved!")
             
             # Refresh list and re-select
-            self._refresh_list()
+            _ = self._refresh_list()
             
             # Find the item index to select it
             profiles = self.manager.get_all()
@@ -295,7 +295,7 @@ class ProfilesScreen(Screen):
             new_profile.name = f"{current.name} (Copy)"
             self.manager.save(new_profile)
             
-            self._refresh_list()
+            _ = self._refresh_list()
             self.notify(f"Cloned to '{new_profile.name}'")
 
     @on(Button.Pressed, "#btn-delete")
@@ -306,7 +306,7 @@ class ProfilesScreen(Screen):
             
         self.manager.delete(self.current_profile_id)
         self.notify("Profile deleted")
-        self._refresh_list()
+        _ = self._refresh_list()
         
         # Reset form or select first available
         profiles = self.manager.get_all()
