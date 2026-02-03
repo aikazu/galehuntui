@@ -157,4 +157,4 @@ tools/deps/
 app.log
 audit/*.log
 runs/
-.sisypus/
+.sisyphus/
