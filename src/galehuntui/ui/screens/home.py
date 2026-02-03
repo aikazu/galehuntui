@@ -22,7 +22,8 @@ class HomeScreen(Screen):
         Binding("t", "tools_manager", "Tools", priority=True),
         Binding("s", "settings", "Settings", priority=True),
         Binding("p", "profiles", "Profiles", priority=True),
-        # Q is global in app.py for Quit
+        Binding("d", "delete_run", "Delete", priority=True),
+        Binding("enter", "view_run", "View", priority=True),
     ]
 
     CSS = """
@@ -351,3 +352,124 @@ class HomeScreen(Screen):
             self.action_profiles()
         elif event.button.id == "btn_settings":
             self.action_settings()
+
+    def _get_selected_run_id(self) -> Optional[str]:
+        """Get the full run ID from the selected table row."""
+        table = self.query_one("#recent_runs_table", DataTable)
+        
+        if table.row_count == 0:
+            return None
+        
+        try:
+            row_index = table.cursor_row
+            if row_index is None or row_index < 0:
+                return None
+            
+            row_data = table.get_row_at(row_index)
+            if not row_data:
+                return None
+            
+            short_id = str(row_data[0])
+            
+            data_dir = get_data_dir()
+            db_path = data_dir / "galehuntui.db"
+            
+            with Database(db_path) as db:
+                runs = db.list_runs(limit=100)
+                for run in runs:
+                    if run.id.startswith(short_id):
+                        return run.id
+        except Exception as e:
+            self.notify(f"Error: {e}", severity="error")
+        return None
+
+    def action_view_run(self) -> None:
+        """View the selected run details."""
+        run_id = self._get_selected_run_id()
+        if run_id:
+            from galehuntui.ui.screens.run_detail import RunDetailScreen
+            self.app.push_screen(RunDetailScreen(run_id))
+        else:
+            self.notify("Select a run first", severity="warning")
+
+    def action_delete_run(self) -> None:
+        """Delete the selected run after confirmation."""
+        run_id = self._get_selected_run_id()
+        if not run_id:
+            self.notify("Select a run first", severity="warning")
+            return
+        
+        self._confirm_delete(run_id)
+
+    def _confirm_delete(self, run_id: str) -> None:
+        """Show confirmation dialog for delete."""
+        from textual.widgets import Button
+        from textual.containers import Horizontal
+        from textual.screen import ModalScreen
+        
+        class ConfirmDeleteScreen(ModalScreen[bool]):
+            CSS = """
+            ConfirmDeleteScreen {
+                align: center middle;
+            }
+            
+            #confirm-dialog {
+                width: 50;
+                height: 10;
+                background: #1a1c29;
+                border: solid #ff0055;
+                padding: 1 2;
+            }
+            
+            #confirm-buttons {
+                margin-top: 1;
+                align: center middle;
+            }
+            
+            #confirm-buttons Button {
+                margin: 0 1;
+            }
+            """
+            
+            def __init__(self, run_id: str):
+                super().__init__()
+                self.run_id = run_id
+            
+            def compose(self) -> ComposeResult:
+                with Vertical(id="confirm-dialog"):
+                    yield Label(f"Delete run {self.run_id[:8]}?")
+                    yield Label("This action cannot be undone.")
+                    with Horizontal(id="confirm-buttons"):
+                        yield Button("Delete", variant="error", id="btn_confirm")
+                        yield Button("Cancel", id="btn_cancel")
+            
+            def on_button_pressed(self, event: Button.Pressed) -> None:
+                if event.button.id == "btn_confirm":
+                    self.dismiss(True)
+                else:
+                    self.dismiss(False)
+        
+        def handle_delete_result(confirmed: bool) -> None:
+            if confirmed:
+                self._do_delete(run_id)
+        
+        self.app.push_screen(ConfirmDeleteScreen(run_id), handle_delete_result)
+
+    @work(exclusive=True)
+    async def _do_delete(self, run_id: str) -> None:
+        """Perform the actual deletion."""
+        try:
+            data_dir = get_data_dir()
+            db_path = data_dir / "galehuntui.db"
+            
+            with Database(db_path) as db:
+                success = db.delete_run(run_id)
+                
+            if success:
+                self.notify(f"Run {run_id[:8]} deleted", severity="information")
+                self._load_dashboard_data()
+            else:
+                self.notify(f"Failed to delete run", severity="error")
+                
+        except Exception as e:
+            self.notify(f"Delete failed: {e}", severity="error")
