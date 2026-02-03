@@ -18,7 +18,7 @@ from rich.panel import Panel
 from rich import print as rprint
 
 # Core imports
-# from galehuntui.core.config import load_scope_config, load_profile_config
+from galehuntui.core.config import get_data_dir, get_runs_dir, get_deps_dir, get_plugins_dir
 from galehuntui.core.constants import EngagementMode
 
 # Version
@@ -180,8 +180,8 @@ def run(
             raise typer.Exit(code=1)
         scan_profile: ScanProfile = loaded_profile
         
-        data_dir = Path.home() / ".local" / "share" / "galehuntui"
-        runs_dir = data_dir / "runs"
+        data_dir = get_data_dir()
+        runs_dir = get_runs_dir()
         runs_dir.mkdir(parents=True, exist_ok=True)
         
         if output:
@@ -304,7 +304,7 @@ def export(
     from galehuntui.reporting.generator import ReportGenerator
     
     try:
-        data_dir = Path.home() / ".local" / "share" / "galehuntui"
+        data_dir = get_data_dir()
         db_path = data_dir / "galehuntui.db"
         
         if not db_path.exists():
@@ -700,7 +700,7 @@ def deps_install(
     from galehuntui.tools.deps.manager import DependencyManager
     
     try:
-        deps_dir = Path.home() / ".local" / "share" / "galehuntui" / "deps"
+        deps_dir = get_deps_dir()
         manager = DependencyManager(deps_dir)
         
         async def install_deps():
@@ -742,7 +742,7 @@ def deps_update(
     from galehuntui.tools.deps.manager import DependencyManager
     
     try:
-        deps_dir = Path.home() / ".local" / "share" / "galehuntui" / "deps"
+        deps_dir = get_deps_dir()
         manager = DependencyManager(deps_dir)
         
         async def update_dep():
@@ -767,7 +767,7 @@ def deps_list() -> None:
     from galehuntui.tools.deps.manager import DependencyManager
     
     try:
-        deps_dir = Path.home() / ".local" / "share" / "galehuntui" / "deps"
+        deps_dir = get_deps_dir()
         manager = DependencyManager(deps_dir)
         
         async def get_deps():
@@ -811,7 +811,7 @@ def deps_clean() -> None:
     from galehuntui.tools.deps.manager import DependencyManager
     
     try:
-        deps_dir = Path.home() / ".local" / "share" / "galehuntui" / "deps"
+        deps_dir = get_deps_dir()
         manager = DependencyManager(deps_dir)
         
         console.print("[cyan]Cleaning dependencies...[/cyan]")
@@ -852,7 +852,7 @@ def runs_list(
     from galehuntui.storage.database import Database
     
     try:
-        data_dir = Path.home() / ".local" / "share" / "galehuntui"
+        data_dir = get_data_dir()
         db_path = data_dir / "galehuntui.db"
         
         if not db_path.exists():
@@ -916,7 +916,7 @@ def runs_show(
     from galehuntui.storage.database import Database
     
     try:
-        data_dir = Path.home() / ".local" / "share" / "galehuntui"
+        data_dir = get_data_dir()
         db_path = data_dir / "galehuntui.db"
         
         if not db_path.exists():
@@ -1064,7 +1064,7 @@ def runs_delete(
     from galehuntui.storage.artifacts import ArtifactStorage
     
     try:
-        data_dir = Path.home() / ".local" / "share" / "galehuntui"
+        data_dir = get_data_dir()
         db_path = data_dir / "galehuntui.db"
         runs_dir = data_dir / "runs"
         
@@ -1143,7 +1143,7 @@ def plugins_list() -> None:
         
         if not plugins:
             console.print("[yellow]No plugins discovered.[/yellow]")
-            console.print(f"[dim]Plugin directory: ~/.local/share/galehuntui/plugins/[/dim]")
+            console.print(f"[dim]Plugin directory: {get_plugins_dir()}[/dim]")
             return
         
         table = Table(title="Discovered Plugins")
