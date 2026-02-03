@@ -205,6 +205,10 @@ class HomeScreen(Screen):
         # Load real data in background
         self._load_dashboard_data()
 
+    def on_screen_resume(self) -> None:
+        """Refresh data when returning to this screen."""
+        self._load_dashboard_data()
+
     @work(exclusive=True)
     async def _load_dashboard_data(self) -> None:
         """Load dashboard data from database in background."""
