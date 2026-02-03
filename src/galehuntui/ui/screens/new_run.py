@@ -298,15 +298,16 @@ class NewRunScreen(Screen):
             }
             
             # Load adapters for steps in profile
+            # Note: ToolAdapterBase expects bin_path to be the directory containing binaries
+            # It constructs _tool_binary = bin_path / self.name internally
+            bin_dir = tools_dir / "bin"
             for tool_name in scan_profile.steps:
                 if tool_name in adapter_modules:
                     try:
                         mod = importlib.import_module(adapter_modules[tool_name])
                         adapter_class = getattr(mod, f"{tool_name.capitalize()}Adapter", None)
                         if adapter_class:
-                            # Construct bin path
-                            bin_path = tools_dir / "bin" / tool_name
-                            adapters[tool_name] = adapter_class(bin_path)
+                            adapters[tool_name] = adapter_class(bin_dir)
                     except Exception as e:
                         # Continue with warning
                         self.app.notify(f"Warning: Failed to load {tool_name}: {e}", severity="warning")
