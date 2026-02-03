@@ -124,8 +124,12 @@ galehuntui/
 |   |   |   +-- sqlmap.py
 |   |   |   +-- hydra.py
 |   |   |   +-- wfuzz.py
-|   |   +-- deps/             # Dependency managers (STUB)
+|   |   +-- deps/             # Dependency managers (IMPLEMENTED)
 |   |       +-- __init__.py
+|   |       +-- registry.yaml   # Dependency definitions
+|   |       +-- manager.py      # DependencyManager class
+|   |       +-- wordlists.py    # WordlistManager class
+|   |       +-- templates.py    # TemplateManager class
 |   |
 |   +-- classifier/           # URL processing (IMPLEMENTED)
 |   |   +-- __init__.py
@@ -148,6 +152,25 @@ galehuntui/
 |   |   +-- __init__.py
 |   |   +-- database.py       # SQLite with WAL mode
 |   |   +-- artifacts.py      # Artifact file management
+|   |   +-- migrations/       # Database migrations (IMPLEMENTED)
+|   |       +-- __init__.py
+|   |       +-- runner.py         # MigrationRunner class
+|   |       +-- m001_initial_schema.py
+|   |       +-- m002_add_steps_table.py
+|   |
+|   +-- notifications/        # Webhook notifications (IMPLEMENTED)
+|   |   +-- __init__.py
+|   |   +-- webhook.py        # WebhookManager class
+|   |   +-- providers/
+|   |       +-- __init__.py
+|   |       +-- base.py       # WebhookProvider ABC
+|   |       +-- slack.py      # SlackProvider
+|   |       +-- discord.py    # DiscordProvider
+|   |
+|   +-- plugins/              # Plugin system (IMPLEMENTED)
+|   |   +-- __init__.py
+|   |   +-- base.py           # ToolPlugin ABC, PluginMetadata
+|   |   +-- manager.py        # PluginManager class
 |   |
 |   +-- ui/                   # Textual TUI (IMPLEMENTED)
 |       +-- __init__.py
@@ -165,8 +188,11 @@ galehuntui/
 |       |   +-- finding_detail.py # Finding viewer
 |       |   +-- help.py           # Help screen
 |       |   +-- setup.py          # First-run wizard
-|       +-- widgets/          # Custom widgets (STUB)
+|       +-- widgets/          # Custom widgets (IMPLEMENTED)
 |       |   +-- __init__.py
+|       |   +-- log_view.py       # LogViewWidget class
+|       |   +-- progress.py       # PipelineProgressWidget class
+|       |   +-- findings_table.py # FindingsTableWidget class
 |       +-- styles/
 |           +-- __init__.py
 |           +-- main.tcss     # Textual CSS
@@ -985,18 +1011,21 @@ dev = [
 
 ---
 
-## Future Enhancements (Not Yet Implemented)
+## Completed Enhancements
 
-- [ ] `tools/registry.yaml` - Tool definitions file
-- [ ] `tools/deps/wordlists.py` - Wordlist manager
-- [ ] `tools/deps/templates.py` - Template manager  
-- [ ] `ui/widgets/log_view.py` - Custom log widget
-- [ ] `ui/widgets/progress.py` - Progress widget
-- [ ] `ui/widgets/findings_table.py` - Findings table widget
-- [ ] `storage/migrations/` - Database migrations
-- [ ] Resume capability for long-running scans
-- [ ] Webhook notifications (Slack/Discord)
-- [ ] Plugin system for community adapters
+All major roadmap items have been implemented:
+
+- [x] `tools/registry.yaml` - Tool definitions file
+- [x] `tools/deps/manager.py` - Dependency manager
+- [x] `tools/deps/wordlists.py` - Wordlist manager
+- [x] `tools/deps/templates.py` - Template manager  
+- [x] `ui/widgets/log_view.py` - Custom log widget
+- [x] `ui/widgets/progress.py` - Progress widget
+- [x] `ui/widgets/findings_table.py` - Findings table widget
+- [x] `storage/migrations/` - Database migrations
+- [x] Resume capability for long-running scans
+- [x] Webhook notifications (Slack/Discord)
+- [x] Plugin system for community adapters
 
 ---
 

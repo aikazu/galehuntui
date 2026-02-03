@@ -2,23 +2,23 @@
 
 > **Version**: 1.0.0  
 > **Last Updated**: 2026-02-03  
-> **Status**: Approved for Implementation
+> **Status**: ✅ COMPLETE - All Waves Implemented
 
 ---
 
 ## Executive Summary
 
-This roadmap outlines 10 planned enhancements for GaleHunTUI, organized into 5 implementation waves based on technical dependencies and user value. The plan prioritizes **foundation stability** first (fixing missing infrastructure), followed by **reliability** (resume capability), **user experience** (TUI widgets), and finally **ecosystem expansion** (plugins, webhooks).
+This roadmap outlined 10 planned enhancements for GaleHunTUI, organized into 5 implementation waves based on technical dependencies and user value. **All waves have been successfully implemented.**
 
 ### At a Glance
 
-| Wave | Focus | Duration | Key Deliverables |
-|------|-------|----------|------------------|
-| **Wave 0** | Quick Win | 1 day | Tool installation works |
-| **Wave 1** | Foundation | 1-2 weeks | Dependency management complete |
-| **Wave 2** | Reliability | 2-3 weeks | Scan resume capability |
-| **Wave 3** | User Experience | 2 weeks | Enhanced TUI widgets |
-| **Wave 4** | Ecosystem | 3-4 weeks | Plugins & notifications |
+| Wave | Focus | Duration | Key Deliverables | Status |
+|------|-------|----------|------------------|--------|
+| **Wave 0** | Quick Win | 1 day | Tool installation works | ✅ Complete |
+| **Wave 1** | Foundation | 1-2 weeks | Dependency management complete | ✅ Complete |
+| **Wave 2** | Reliability | 2-3 weeks | Scan resume capability | ✅ Complete |
+| **Wave 3** | User Experience | 2 weeks | Enhanced TUI widgets | ✅ Complete |
+| **Wave 4** | Ecosystem | 3-4 weeks | Plugins & notifications | ✅ Complete |
 
 **Total Estimated Effort**: 8-12 weeks
 
@@ -28,17 +28,17 @@ This roadmap outlines 10 planned enhancements for GaleHunTUI, organized into 5 i
 
 | Priority | Item | Effort | Wave | Value | Status |
 |----------|------|--------|------|-------|--------|
-| P0 | `tools/registry.yaml` | Small | 0 | Critical | Pending |
-| P0 | `tools/deps/manager.py` | Medium | 1 | Critical | Pending |
-| P0 | `tools/deps/wordlists.py` | Small | 1 | High | Pending |
-| P0 | `tools/deps/templates.py` | Small | 1 | High | Pending |
-| P1 | `storage/migrations/` | Medium | 2 | High | Pending |
-| P1 | Resume Capability | Large | 2 | High | Pending |
-| P2 | `ui/widgets/log_view.py` | Medium | 3 | Medium | Pending |
-| P2 | `ui/widgets/progress.py` | Medium | 3 | Medium | Pending |
-| P2 | `ui/widgets/findings_table.py` | Medium | 3 | Medium | Pending |
-| P3 | Webhook Notifications | Medium | 4 | Medium | Pending |
-| P3 | Plugin System | Large | 4 | High | Pending |
+| P0 | `tools/registry.yaml` | Small | 0 | Critical | ✅ Complete |
+| P0 | `tools/deps/manager.py` | Medium | 1 | Critical | ✅ Complete |
+| P0 | `tools/deps/wordlists.py` | Small | 1 | High | ✅ Complete |
+| P0 | `tools/deps/templates.py` | Small | 1 | High | ✅ Complete |
+| P1 | `storage/migrations/` | Medium | 2 | High | ✅ Complete |
+| P1 | Resume Capability | Large | 2 | High | ✅ Complete |
+| P2 | `ui/widgets/log_view.py` | Medium | 3 | Medium | ✅ Complete |
+| P2 | `ui/widgets/progress.py` | Medium | 3 | Medium | ✅ Complete |
+| P2 | `ui/widgets/findings_table.py` | Medium | 3 | Medium | ✅ Complete |
+| P3 | Webhook Notifications | Medium | 4 | Medium | ✅ Complete |
+| P3 | Plugin System | Large | 4 | High | ✅ Complete |
 
 ---
 
@@ -103,11 +103,11 @@ Create `src/galehuntui/tools/registry.yaml` with entries for all 11 supported to
 
 #### Success Criteria
 
-- [ ] `galehuntui tools list` displays all 11 tools with their status
-- [ ] `galehuntui tools install subfinder` downloads and installs successfully
-- [ ] `galehuntui tools install --all` completes without errors
-- [ ] `galehuntui tools verify` reports accurate tool availability
-- [ ] Existing `installer.py` code works without modification
+- [x] `galehuntui tools list` displays all 11 tools with their status
+- [x] `galehuntui tools install subfinder` downloads and installs successfully
+- [x] `galehuntui tools install --all` completes without errors
+- [x] `galehuntui tools verify` reports accurate tool availability
+- [x] Existing `installer.py` code works without modification
 
 ---
 
@@ -138,12 +138,12 @@ Create `src/galehuntui/tools/registry.yaml` with entries for all 11 supported to
 
 #### Success Criteria
 
-- [ ] `galehuntui deps list` shows all dependencies with real status
-- [ ] `galehuntui deps install nuclei-templates` clones repository
-- [ ] `galehuntui deps update --all` pulls latest for all installed deps
-- [ ] `galehuntui deps verify` reports accurate installation status
-- [ ] TUI deps_manager screen shows real data (not mock)
-- [ ] Unit tests cover install, update, verify operations
+- [x] `galehuntui deps list` shows all dependencies with real status
+- [x] `galehuntui deps install nuclei-templates` clones repository
+- [x] `galehuntui deps update --all` pulls latest for all installed deps
+- [x] `galehuntui deps verify` reports accurate installation status
+- [x] TUI deps_manager screen shows real data (not mock)
+- [x] Unit tests cover install, update, verify operations
 
 ### 1.3 Wordlists Module (`tools/deps/wordlists.py`)
 
@@ -153,9 +153,9 @@ Create `src/galehuntui/tools/registry.yaml` with entries for all 11 supported to
 
 #### Success Criteria
 
-- [ ] `WordlistManager.get_wordlist("directories")` returns correct path
-- [ ] Custom wordlist paths resolved correctly
-- [ ] Integration with ffuf/wfuzz adapters
+- [x] `WordlistManager.get_wordlist("directories")` returns correct path
+- [x] Custom wordlist paths resolved correctly
+- [x] Integration with ffuf/wfuzz adapters
 
 ### 1.4 Templates Module (`tools/deps/templates.py`)
 
@@ -165,9 +165,9 @@ Create `src/galehuntui/tools/registry.yaml` with entries for all 11 supported to
 
 #### Success Criteria
 
-- [ ] `TemplateManager.get_template_path()` returns nuclei-templates location
-- [ ] Integration with nuclei adapter
-- [ ] Template filtering by severity/tag
+- [x] `TemplateManager.get_template_path()` returns nuclei-templates location
+- [x] Integration with nuclei adapter
+- [x] Template filtering by severity/tag
 
 ---
 
@@ -197,12 +197,12 @@ Create `src/galehuntui/tools/registry.yaml` with entries for all 11 supported to
 
 #### Success Criteria
 
-- [ ] `schema_migrations` table tracks applied versions
-- [ ] Fresh install runs all migrations automatically
-- [ ] Existing databases upgrade seamlessly (no data loss)
-- [ ] Rollback works for reversible migrations
-- [ ] `Database.init_db()` uses migration runner
-- [ ] Tests verify migration up/down operations
+- [x] `schema_migrations` table tracks applied versions
+- [x] Fresh install runs all migrations automatically
+- [x] Existing databases upgrade seamlessly (no data loss)
+- [x] Rollback works for reversible migrations
+- [x] `Database.init_db()` uses migration runner
+- [x] Tests verify migration up/down operations
 
 ### 2.2 Resume Capability
 
@@ -220,12 +220,12 @@ Create `src/galehuntui/tools/registry.yaml` with entries for all 11 supported to
 
 #### Success Criteria
 
-- [ ] Step completion persisted immediately to `run_steps` table
-- [ ] `galehuntui runs list` shows run state (completed/interrupted/running)
-- [ ] `galehuntui run example.com --resume run-xxx` resumes from last step
-- [ ] TUI shows "Resume" option for interrupted runs
-- [ ] Skipped steps logged clearly during resume
-- [ ] Tests simulate crash-and-resume scenarios
+- [x] Step completion persisted immediately to `run_steps` table
+- [x] `galehuntui runs list` shows run state (completed/interrupted/running)
+- [x] `galehuntui run example.com --resume run-xxx` resumes from last step
+- [x] TUI shows "Resume" option for interrupted runs
+- [x] Skipped steps logged clearly during resume
+- [x] Tests simulate crash-and-resume scenarios
 
 ---
 
@@ -245,11 +245,11 @@ Create `src/galehuntui/tools/registry.yaml` with entries for all 11 supported to
 
 #### Success Criteria
 
-- [ ] Logs display with severity-based coloring
-- [ ] Filter by minimum severity level (e.g., show HIGH+ only)
-- [ ] Search/highlight functionality
-- [ ] Export visible logs to file
-- [ ] Keyboard shortcuts work
+- [x] Logs display with severity-based coloring
+- [x] Filter by minimum severity level (e.g., show HIGH+ only)
+- [x] Search/highlight functionality
+- [x] Export visible logs to file
+- [x] Keyboard shortcuts work
 
 ### 3.2 Progress Widget (`ui/widgets/progress.py`)
 
@@ -260,11 +260,11 @@ Create `src/galehuntui/tools/registry.yaml` with entries for all 11 supported to
 
 #### Success Criteria
 
-- [ ] Shows all pipeline stages with status icons
-- [ ] Current stage highlighted/animated
-- [ ] Per-stage and overall progress bars
-- [ ] Duration tracking per stage
-- [ ] Responsive to window resizing
+- [x] Shows all pipeline stages with status icons
+- [x] Current stage highlighted/animated
+- [x] Per-stage and overall progress bars
+- [x] Duration tracking per stage
+- [x] Responsive to window resizing
 
 ### 3.3 Findings Table Widget (`ui/widgets/findings_table.py`)
 
@@ -275,12 +275,12 @@ Create `src/galehuntui/tools/registry.yaml` with entries for all 11 supported to
 
 #### Success Criteria
 
-- [ ] Severity-based row coloring
-- [ ] Sortable by any column (keyboard shortcut)
-- [ ] Filterable by severity, type, host
-- [ ] Real-time updates when new findings arrive
-- [ ] Export selection to JSON
-- [ ] Enter key opens finding detail view
+- [x] Severity-based row coloring
+- [x] Sortable by any column (keyboard shortcut)
+- [x] Filterable by severity, type, host
+- [x] Real-time updates when new findings arrive
+- [x] Export selection to JSON
+- [x] Enter key opens finding detail view
 
 ---
 
@@ -309,13 +309,13 @@ Create `src/galehuntui/tools/registry.yaml` with entries for all 11 supported to
 
 #### Success Criteria
 
-- [ ] Slack notifications with proper formatting (attachments, colors)
-- [ ] Discord notifications with embeds
-- [ ] Rate limiting prevents API abuse
-- [ ] Retry logic handles transient failures
-- [ ] Configurable event filtering
-- [ ] Configurable severity threshold
-- [ ] Tests mock HTTP calls
+- [x] Slack notifications with proper formatting (attachments, colors)
+- [x] Discord notifications with embeds
+- [x] Rate limiting prevents API abuse
+- [x] Retry logic handles transient failures
+- [x] Configurable event filtering
+- [x] Configurable severity threshold
+- [x] Tests mock HTTP calls
 
 ### 4.2 Plugin System (Tool Adapters Only)
 
@@ -341,14 +341,14 @@ Create `src/galehuntui/tools/registry.yaml` with entries for all 11 supported to
 
 #### Success Criteria
 
-- [ ] Plugins discovered from entry points
-- [ ] Plugins discovered from user plugin directory
-- [ ] Plugin validation before loading (environment check)
-- [ ] `galehuntui plugins list` shows installed plugins
-- [ ] `galehuntui plugins enable/disable <name>` works
-- [ ] Failed plugins don't crash the application
-- [ ] Documentation for creating plugins
-- [ ] Example plugin repository/template
+- [x] Plugins discovered from entry points
+- [x] Plugins discovered from user plugin directory
+- [x] Plugin validation before loading (environment check)
+- [x] `galehuntui plugins list` shows installed plugins
+- [x] `galehuntui plugins enable/disable <name>` works
+- [x] Failed plugins don't crash the application
+- [x] Documentation for creating plugins
+- [x] Example plugin repository/template
 
 ---
 

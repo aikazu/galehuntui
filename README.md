@@ -31,6 +31,9 @@ Reconnaissance → Vulnerability Scanning → Targeted Injection → Comprehensi
 | **3 Engagement Modes** | Bug Bounty, Authorized, and Aggressive modes with appropriate safeguards |
 | **Evidence Storage** | Every finding includes reproducible evidence |
 | **Professional Reports** | HTML and JSON export with executive summaries |
+| **Resume Capability** | Resume interrupted scans from last completed step |
+| **Webhook Notifications** | Slack and Discord alerts for scan events |
+| **Plugin System** | Extend with community tool adapters |
 
 ---
 
@@ -45,8 +48,10 @@ Reconnaissance → Vulnerability Scanning → Targeted Injection → Comprehensi
   - [Scope Configuration](#scope-configuration)
   - [Scan Profiles](#scan-profiles)
   - [Engagement Modes](#engagement-modes)
+  - [Webhook Notifications](#webhook-notifications)
 - [Pipeline Stages](#pipeline-stages)
 - [Tool Management](#tool-management)
+- [Plugin System](#plugin-system)
 - [Architecture](#architecture)
 - [Development](#development)
 - [Testing](#testing)
@@ -174,11 +179,15 @@ galehuntui run <target> [OPTIONS]
 #   -m, --mode      Engagement mode (bugbounty, authorized, aggressive)
 #   -s, --scope     Scope configuration file
 #   -o, --output    Output directory
+#   -r, --resume    Resume an interrupted run by ID
 #   -v, --verbose   Verbose output
 
 # Examples:
 galehuntui run example.com --profile standard --mode authorized
 galehuntui run example.com -p deep -m aggressive -s scope.yaml
+
+# Resume an interrupted scan
+galehuntui run example.com --resume run-abc123
 ```
 
 #### Tool Management
@@ -227,6 +236,25 @@ galehuntui runs show <run_id>
 
 # Delete a run
 galehuntui runs delete <run_id> --force
+```
+
+#### Plugin Management
+
+```bash
+# List installed plugins
+galehuntui plugins list
+
+# Enable a plugin
+galehuntui plugins enable <plugin_name>
+
+# Disable a plugin
+galehuntui plugins disable <plugin_name>
+
+# Show plugin details
+galehuntui plugins info <plugin_name>
+
+# Validate a plugin file
+galehuntui plugins validate /path/to/plugin.py
 ```
 
 #### Export Reports
@@ -300,6 +328,52 @@ profiles:
 | **bugbounty** | Bug bounty programs | Conservative (30/s global, 5/s per-host) | SQLi dump disabled, brute force disabled |
 | **authorized** | Authorized pentests | Moderate (100/s global, 20/s per-host) | Full features on-demand |
 | **aggressive** | Full assessments | High (500/s global, 100/s per-host) | All features enabled |
+
+### Webhook Notifications
+
+GaleHunTUI supports real-time notifications via Slack and Discord webhooks.
+
+#### Configuration
+
+Add webhook configuration to your settings:
+
+```yaml
+# ~/.config/galehuntui/config.yaml
+notifications:
+  webhooks:
+    - name: "security-alerts"
+      provider: slack
+      url: "https://hooks.slack.com/services/xxx/yyy/zzz"
+      events:
+        - scan_started
+        - scan_completed
+        - finding_discovered
+      min_severity: high  # Only notify for HIGH+ findings
+      
+    - name: "discord-channel"
+      provider: discord
+      url: "https://discord.com/api/webhooks/xxx/yyy"
+      events:
+        - scan_completed
+        - scan_failed
+```
+
+#### Supported Events
+
+| Event | Description |
+|-------|-------------|
+| `scan_started` | Scan begins execution |
+| `scan_completed` | Scan finishes successfully |
+| `scan_failed` | Scan errors out |
+| `finding_discovered` | New vulnerability found |
+| `stage_completed` | Pipeline stage completes |
+
+#### Features
+
+- **Rate Limiting**: Prevents API abuse with per-provider rate limits
+- **Retry Logic**: Automatic exponential backoff for transient failures
+- **Rich Formatting**: Slack Block Kit and Discord embeds for clear notifications
+- **Severity Filtering**: Only notify for findings above a threshold
 
 ---
 
@@ -397,6 +471,85 @@ galehuntui tools install --all
 
 ---
 
+## Plugin System
+
+GaleHunTUI supports community-developed tool adapter plugins to extend functionality.
+
+### Plugin Discovery
+
+Plugins are discovered from two sources:
+
+1. **Entry Points**: Installed via pip with `galehuntui.plugins.tools` entry point
+2. **Plugin Directory**: `~/.local/share/galehuntui/plugins/`
+
+### Creating a Plugin
+
+Create a Python file that extends `ToolPlugin`:
+
+```python
+# my_tool_plugin.py
+from galehuntui.plugins.base import ToolPlugin, PluginMetadata
+
+class MyToolPlugin(ToolPlugin):
+    """Plugin for my-security-tool."""
+    
+    @property
+    def metadata(self) -> PluginMetadata:
+        return PluginMetadata(
+            name="my-tool",
+            version="1.0.0",
+            author="Your Name",
+            description="Adapter for my-security-tool",
+            tool_name="my-tool",
+            homepage="https://github.com/user/my-tool",
+        )
+    
+    def build_command(
+        self,
+        inputs: list[str],
+        config: ToolConfig,
+        output_path: Path,
+    ) -> list[str]:
+        return [
+            str(self.bin_path),
+            "-i", ",".join(inputs),
+            "-o", str(output_path),
+            "-json",
+        ]
+    
+    def parse_output(self, raw: str) -> list[Finding]:
+        # Parse tool output and return Findings
+        ...
+```
+
+### Installing a Plugin
+
+```bash
+# Copy to plugin directory
+cp my_tool_plugin.py ~/.local/share/galehuntui/plugins/
+
+# Or install via pip (for packaged plugins)
+pip install galehuntui-my-tool-plugin
+
+# Verify installation
+galehuntui plugins list
+
+# Enable the plugin
+galehuntui plugins enable my-tool
+```
+
+### Plugin Management Commands
+
+| Command | Description |
+|---------|-------------|
+| `galehuntui plugins list` | Show all discovered plugins |
+| `galehuntui plugins enable <name>` | Enable a plugin |
+| `galehuntui plugins disable <name>` | Disable a plugin |
+| `galehuntui plugins info <name>` | Show plugin details |
+| `galehuntui plugins validate <file>` | Validate a plugin file |
+
+---
+
 ## Architecture
 
 ### Project Structure
@@ -411,7 +564,7 @@ galehuntui/
 │   │   ├── exceptions.py     # Exception hierarchy
 │   │   └── constants.py      # Enums and constants
 │   ├── orchestrator/         # Pipeline coordination
-│   │   ├── pipeline.py       # Pipeline execution
+│   │   ├── pipeline.py       # Pipeline execution (with resume)
 │   │   ├── scheduler.py      # Async task scheduling
 │   │   └── state.py          # Run state management
 │   ├── runner/               # Tool execution
@@ -420,13 +573,30 @@ galehuntui/
 │   ├── tools/                # Tool management
 │   │   ├── base.py           # ToolAdapter ABC
 │   │   ├── installer.py      # Tool installation
-│   │   └── adapters/         # Individual tool adapters
+│   │   ├── adapters/         # Individual tool adapters
+│   │   └── deps/             # Dependency management
+│   │       ├── manager.py    # DependencyManager
+│   │       ├── wordlists.py  # WordlistManager
+│   │       └── templates.py  # TemplateManager
 │   ├── classifier/           # URL processing
 │   ├── reporting/            # Report generation
 │   ├── storage/              # Data persistence
+│   │   ├── database.py       # SQLite operations
+│   │   ├── artifacts.py      # Artifact storage
+│   │   └── migrations/       # Schema migrations
+│   ├── notifications/        # Webhook notifications
+│   │   ├── webhook.py        # WebhookManager
+│   │   └── providers/        # Slack, Discord providers
+│   ├── plugins/              # Plugin system
+│   │   ├── base.py           # ToolPlugin ABC
+│   │   └── manager.py        # PluginManager
 │   └── ui/                   # Textual TUI
 │       ├── app.py            # Main application
 │       ├── screens/          # TUI screens
+│       ├── widgets/          # Custom widgets
+│       │   ├── log_view.py   # Log viewer widget
+│       │   ├── progress.py   # Progress widget
+│       │   └── findings_table.py  # Findings table
 │       └── styles/           # Textual CSS
 ├── tools/                    # External tools (gitignored)
 ├── configs/                  # Configuration files
@@ -441,6 +611,7 @@ galehuntui/
 ├── galehuntui.db              # SQLite database (WAL mode)
 ├── logs/                      # Application logs
 ├── audit/                     # Audit logs
+├── plugins/                   # User plugins directory
 └── runs/
     └── <run_id>/
         ├── metadata.json      # Run configuration
