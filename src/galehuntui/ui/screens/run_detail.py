@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 from datetime import datetime
 from typing import Set
@@ -14,6 +15,8 @@ from textual import work
 from galehuntui.storage.database import Database
 from galehuntui.core.models import RunState, PipelineStep, Finding, Severity, RunMetadata
 from galehuntui.core.constants import StepStatus
+
+logger = logging.getLogger(__name__)
 
 def get_data_dir() -> Path:
     """Get the data directory path."""
@@ -47,26 +50,24 @@ class RunDetailScreen(Screen):
                 yield Label("Status: --", classes="status-badge", id="run-status")
                 yield Label("Duration: --", classes="info-label", id="run-duration")
 
-            # Pipeline Progress
-            yield Label("Pipeline Progress", classes="section-title")
-            yield ProgressBar(total=100, show_eta=True, classes="pipeline-progress", id="run-progress")
+            with Horizontal(classes="split-view"):
+                with Container(classes="sidebar-panel"):
+                    yield Label("Pipeline", classes="section-title")
+                    yield ProgressBar(total=100, show_eta=True, classes="pipeline-progress", id="run-progress")
+                    yield DataTable(id="steps-table")
 
-            # Main Content Area
-            with TabbedContent():
-                with TabPane("Live Logs", id="tab-logs"):
-                    yield RichLog(highlight=True, markup=True, id="run-log")
-                
-                with TabPane("Findings", id="tab-findings"):
-                    yield DataTable(id="findings-table")
-                
-                with TabPane("Steps", id="tab-steps"):
-                     yield DataTable(id="steps-table")
+                    with Container(classes="sidebar-controls"):
+                        yield Button("Pause Run", variant="warning", id="btn-pause", classes="control-btn")
+                        yield Button("Cancel Run", variant="error", id="btn-cancel", classes="control-btn")
+                        yield Button("Export Report", variant="primary", id="btn-export", classes="control-btn")
 
-            # Controls
-            with Horizontal(classes="controls-bar"):
-                yield Button("Pause Run", variant="warning", id="btn-pause")
-                yield Button("Cancel Run", variant="error", id="btn-cancel")
-                yield Button("Export Report", variant="primary", id="btn-export")
+                with Container(classes="main-panel"):
+                    with TabbedContent():
+                        with TabPane("Live Logs", id="tab-logs"):
+                            yield RichLog(highlight=True, markup=True, id="run-log")
+
+                        with TabPane("Findings", id="tab-findings"):
+                            yield DataTable(id="findings-table")
         
         yield Footer()
 
@@ -110,15 +111,14 @@ class RunDetailScreen(Screen):
                 self.app.pop_screen()
                 return
 
-            # Update UI components (we're in the same thread with @work)
-            self._update_run_header(run)
-            
             steps = db.get_steps(self.run_id)
-            self._update_steps_table(steps)
-            
             findings = db.get_findings_for_run(self.run_id)
+            db.close()
+
+            # Update UI components directly (safe within @work async context)
+            self._update_run_header(run)
+            self._update_steps_table(steps)
             self._update_findings_table(findings)
-            
             self._update_progress(run)
             self._log_initial_state(run)
             self._log_step_errors(steps)
@@ -126,8 +126,6 @@ class RunDetailScreen(Screen):
             # Start polling if active
             if run.state in (RunState.RUNNING, RunState.PENDING, RunState.PAUSED):
                 self._start_polling()
-                
-            db.close()
 
         except Exception as e:
             self.notify(f"Error loading run: {e}", severity="error")
@@ -148,13 +146,16 @@ class RunDetailScreen(Screen):
             # But we should run DB ops in a worker. 
             # Ideally set_interval calls a method that calls a worker.
             _ = self._fetch_updates_worker()
-        except Exception:
-            pass # Swallow errors during polling to avoid crashing UI
+        except Exception as e:
+            logger.debug(f"Polling error (non-fatal): {e}")
 
     @work(exclusive=True)
     async def _fetch_updates_worker(self) -> None:
         """Worker to fetch updates."""
         try:
+            if not self.run_id:
+                return
+
             db = Database(self._db_path)
             run = db.get_run(self.run_id)
             
@@ -174,8 +175,8 @@ class RunDetailScreen(Screen):
                 self._update_findings_table(findings)
 
             db.close()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Error fetching updates for run {self.run_id}: {e}")
 
     def _update_run_header(self, run: RunMetadata) -> None:
         """Update the top info bar."""

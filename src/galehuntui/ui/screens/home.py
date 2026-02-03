@@ -36,37 +36,68 @@ class HomeScreen(Screen):
         height: 100%;
         layout: grid;
         grid-size: 2;
-        grid-columns: 3fr 1fr;
-        grid-rows: auto 1fr;
+        grid-columns: 3fr 1.2fr;
+        grid-rows: auto auto 1fr;
         grid-gutter: 1;
         padding: 1;
     }
 
-    /* Stats Panel */
-    #stats-panel {
+    #hero-panel {
         column-span: 2;
         height: 7;
         background: #1a1c29;
         border: solid #2e344d;
+        padding: 1 2;
         layout: horizontal;
-        padding: 0 1;
+    }
+
+    .hero-left {
+        width: 3fr;
+        height: 100%;
+        content-align: left middle;
+    }
+
+    .hero-title {
+        text-style: bold;
+        color: #00f2ea;
+    }
+
+    .hero-subtitle {
+        color: #64748b;
+    }
+
+    .hero-actions {
+        width: 1fr;
+        height: 100%;
+    }
+
+    .hero-actions Button {
+        width: 100%;
         margin-bottom: 1;
     }
 
+    /* Stats Panel */
+    #stats-grid {
+        column-span: 2;
+        height: 7;
+        layout: grid;
+        grid-size: 4;
+        grid-columns: 1fr 1fr 1fr 1fr;
+        grid-rows: 1;
+        grid-gutter: 1;
+    }
+
     .stat-card {
-        width: 1fr;
         height: 100%;
         align: center middle;
-        border-right: solid #0f111a;
-    }
-    
-    .stat-card:last-of-type {
-        border-right: none;
+        background: #1a1c29;
+        border: solid #2e344d;
+        padding: 1;
     }
 
     .stat-value {
         text-align: center;
-        color: #ff0055;
+        color: #00f2ea;
         text-style: bold;
         width: 100%;
         content-align: center middle;
@@ -85,13 +116,13 @@ class HomeScreen(Screen):
         background: #0f111a;
         row-span: 1;
     }
-    
+
     DataTable {
         height: 100%;
         background: #0f111a;
         border: none;
     }
-    
+
     DataTable > .datatable--header {
         background: #1a1c29;
         color: #00f2ea;
@@ -126,19 +157,19 @@ class HomeScreen(Screen):
         height: auto;
         margin-bottom: 1;
     }
-    
+
     .status-row {
         layout: horizontal;
         height: 1;
         margin-bottom: 0;
         width: 100%;
     }
-    
+
     .status-dot {
         color: #00ff9d;
         margin-right: 1;
     }
-    
+
     .status-text {
         color: #64748b;
     }
@@ -148,8 +179,12 @@ class HomeScreen(Screen):
         yield Header(show_clock=True)
         
         with Container(id="home-container"):
-            # Top Stats Row
-            with Horizontal(id="stats-panel"):
+            with Horizontal(id="hero-panel"):
+                with Vertical(classes="hero-left"):
+                    yield Label("GaleHunTUI", classes="hero-title")
+                    yield Label("Recon → Vulnerability Scanning → Targeted Injection → Reporting", classes="hero-subtitle")
+
+            with Container(id="stats-grid"):
                 yield self._make_stat_card("Total Runs", "-", value_id="stat_total_runs")
                 yield self._make_stat_card("Critical Findings", "-", value_id="stat_critical_findings")
                 yield self._make_stat_card("Tools Installed", "-", value_id="stat_tools_installed")
@@ -163,7 +198,6 @@ class HomeScreen(Screen):
 
             # Right: Actions & Status
             with Vertical(id="side-panel"):
-                # Quick Actions
                 with Vertical(classes="status-box"):
                     yield Label("Quick Actions", classes="panel-header")
                     yield Button("New Run (N)", variant="primary", id="btn_new_run", classes="action-button")
@@ -171,7 +205,11 @@ class HomeScreen(Screen):
                     yield Button("Profiles (P)", id="btn_profiles", classes="action-button")
                     yield Button("Settings (S)", id="btn_settings", classes="action-button")
 
-                # System Status
+                with Vertical(classes="status-box"):
+                    yield Label("Run Actions", classes="panel-header")
+                    yield Button("View Selected", id="btn_view_run", classes="action-button")
+                    yield Button("Delete Selected", variant="error", id="btn_delete_run", classes="action-button")
+
                 with Vertical(classes="status-box"):
                     yield Label("System Status", classes="panel-header")
                     yield self._make_status_row("Database", "Checking...", id="status_db")
@@ -203,11 +241,11 @@ class HomeScreen(Screen):
         table.add_columns("ID", "Target", "Profile", "Status", "Findings", "Date")
         
         # Load real data in background
-        self._load_dashboard_data()
+        _ = self._load_dashboard_data()
 
     def on_screen_resume(self) -> None:
         """Refresh data when returning to this screen."""
-        self._load_dashboard_data()
+        _ = self._load_dashboard_data()
 
     @work(exclusive=True)
     async def _load_dashboard_data(self) -> None:
@@ -356,6 +394,10 @@ class HomeScreen(Screen):
             self.action_profiles()
         elif event.button.id == "btn_settings":
             self.action_settings()
+        elif event.button.id == "btn_view_run":
+            self.action_view_run()
+        elif event.button.id == "btn_delete_run":
+            self.action_delete_run()
 
     def _get_selected_run_id(self) -> Optional[str]:
         """Get the full run ID from the selected table row."""
@@ -455,7 +497,7 @@ class HomeScreen(Screen):
         
         def handle_delete_result(confirmed: bool) -> None:
             if confirmed:
-                self._do_delete(run_id)
+                _ = self._do_delete(run_id)
         
         self.app.push_screen(ConfirmDeleteScreen(run_id), handle_delete_result)
 
@@ -471,7 +513,7 @@ class HomeScreen(Screen):
                 
             if success:
                 self.notify(f"Run {run_id[:8]} deleted", severity="information")
-                self._load_dashboard_data()
+                _ = self._load_dashboard_data()
             else:
                 self.notify(f"Failed to delete run", severity="error")
                 
