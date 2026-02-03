@@ -29,6 +29,7 @@ from galehuntui.core.models import RunMetadata, ScopeConfig, RunConfig, RunState
 from galehuntui.core.exceptions import ConfigError
 from galehuntui.storage.database import Database
 from galehuntui.orchestrator.pipeline import PipelineOrchestrator
+from galehuntui.orchestrator.state import RunStateManager
 from galehuntui.ui.screens.run_detail import RunDetailScreen
 
 class NewRunScreen(Screen):
@@ -319,6 +320,15 @@ class NewRunScreen(Screen):
                 engagement_mode=engagement_mode,
             )
             orchestrator.db = db
+            
+            # Replace the state manager with one using our run_id
+            # This ensures the run_id in DB matches the orchestrator's state
+            orchestrator.state = RunStateManager(
+                orchestrator.run_config,
+                run_id=run_id,
+                base_dir=data_dir / "runs",
+                db=db,
+            )
             
             # 7. Run Pipeline
             _state = await orchestrator.run(target)
