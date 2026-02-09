@@ -5,6 +5,7 @@ the state of pipeline runs, including step progress, findings, and artifacts.
 """
 
 import asyncio
+import logging
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -25,6 +26,9 @@ from galehuntui.core.models import (
     RunState,
     Severity,
 )
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -397,7 +401,11 @@ class RunStateManager:
                     try:
                         self.db.save_finding(finding)
                     except Exception:
-                        pass  # Don't fail pipeline on DB error
+                        logger.exception(
+                            "Failed to persist finding %s for run %s",
+                            finding.id,
+                            self.run_id,
+                        )
             
             # Update finding counts
             self.metadata.total_findings = len(self._findings)
@@ -516,9 +524,8 @@ class RunStateManager:
                     await callback(state)
                 else:
                     callback(state)
-            except Exception:
-                # Don't let callback errors break state management
-                pass
+            except Exception as e:
+                logger.warning("State callback failed for run %s: %s", self.run_id, e)
     
     async def _notify_step_change(self, step: PipelineStep) -> None:
         """Notify registered callbacks of step change."""
@@ -528,9 +535,8 @@ class RunStateManager:
                     await callback(step)
                 else:
                     callback(step)
-            except Exception:
-                # Don't let callback errors break state management
-                pass
+            except Exception as e:
+                logger.warning("Step callback failed for run %s (%s): %s", self.run_id, step.name, e)
     
     def _update_findings_by_severity(self) -> None:
         """Update findings count by severity."""

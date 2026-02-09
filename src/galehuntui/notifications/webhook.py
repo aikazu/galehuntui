@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 from enum import Enum
 from typing import Any, Optional, TYPE_CHECKING
 
@@ -117,6 +117,7 @@ class WebhookManager:
 
         for provider_name in self.config.providers:
             if provider_name not in self._providers:
+                logger.warning(f"Skipping webhook provider '{provider_name}': not registered")
                 continue
 
             queued = QueuedEvent(event=event, provider_name=provider_name)
@@ -146,6 +147,7 @@ class WebhookManager:
 
             provider = self._providers.get(queued.provider_name)
             if not provider:
+                logger.warning(f"Dropping webhook event: provider '{queued.provider_name}' not found")
                 continue
 
             if not self._check_rate_limit(queued.provider_name):
@@ -162,7 +164,7 @@ class WebhookManager:
                 queued.attempt += 1
                 if queued.attempt < self.config.max_retries:
                     delay = self.config.retry_delay_base * (2 ** queued.attempt)
-                    queued.next_retry = datetime.now()
+                    queued.next_retry = datetime.now() + timedelta(seconds=delay)
                     await self._queue.put(queued)
                     logger.warning(
                         f"Webhook failed (attempt {queued.attempt}), retrying in {delay}s: {e}"

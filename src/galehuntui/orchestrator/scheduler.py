@@ -5,6 +5,8 @@ task execution with rate limiting and priority queuing.
 """
 
 import asyncio
+import logging
+import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -16,6 +18,9 @@ from galehuntui.core.constants import EngagementMode, RATE_LIMITS
 
 
 T = TypeVar("T")
+
+
+logger = logging.getLogger(__name__)
 
 
 class TaskPriority(Enum):
@@ -104,8 +109,16 @@ class RateLimiter:
         self.rate = rate
         self.burst = burst or int(rate)
         self._tokens = float(self.burst)
-        self._last_update = asyncio.get_event_loop().time() if asyncio.get_event_loop().is_running() else 0
+        self._last_update = self._current_time()
         self._lock = asyncio.Lock()
+
+    @staticmethod
+    def _current_time() -> float:
+        """Get a monotonic clock value with or without a running loop."""
+        try:
+            return asyncio.get_running_loop().time()
+        except RuntimeError:
+            return time.monotonic()
     
     async def acquire(self) -> None:
         """Acquire a token, waiting if necessary."""
@@ -122,7 +135,7 @@ class RateLimiter:
     
     async def _replenish(self) -> None:
         """Replenish tokens based on elapsed time."""
-        now = asyncio.get_event_loop().time()
+        now = self._current_time()
         elapsed = now - self._last_update
         self._tokens = min(self.burst, self._tokens + elapsed * self.rate)
         self._last_update = now
@@ -214,7 +227,11 @@ class TaskScheduler:
                     timeout=timeout,
                 )
             except asyncio.TimeoutError:
-                pass
+                logger.warning(
+                    "Scheduler stop timed out after %.1fs with %d active tasks",
+                    timeout,
+                    len(self._active_tasks),
+                )
         
         # Cancel workers
         for worker in self._workers:
@@ -326,12 +343,12 @@ class TaskScheduler:
         task = self._tasks.get(task_id)
         if task is None:
             return None
-        
-        start_time = asyncio.get_event_loop().time()
+
+        start_time = RateLimiter._current_time()
         
         while task.status in (TaskStatus.PENDING, TaskStatus.QUEUED, TaskStatus.RUNNING):
             if timeout is not None:
-                elapsed = asyncio.get_event_loop().time() - start_time
+                elapsed = RateLimiter._current_time() - start_time
                 if elapsed >= timeout:
                     return task
             
@@ -428,7 +445,7 @@ class TaskScheduler:
             except asyncio.CancelledError:
                 break
             except Exception:
-                # Log error but keep worker running
+                logger.exception("Scheduler worker %s encountered an unexpected error", worker_name)
                 continue
     
     async def _execute_task(self, task: Task) -> None:
@@ -460,8 +477,8 @@ class TaskScheduler:
                         await callback(task)
                     else:
                         callback(task)
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning("Task completion callback failed for %s: %s", task.id, e)
                     
         except Exception as e:
             task.status = TaskStatus.FAILED
@@ -475,8 +492,8 @@ class TaskScheduler:
                         await callback(task, e)
                     else:
                         callback(task, e)
-                except Exception:
-                    pass
+                except Exception as callback_error:
+                    logger.warning("Task error callback failed for %s: %s", task.id, callback_error)
         
         finally:
             self._active_tasks.discard(task.id)

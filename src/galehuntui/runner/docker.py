@@ -6,6 +6,7 @@ provides isolation, consistent environments, and easier dependency management.
 """
 
 import asyncio
+import logging
 from pathlib import Path
 from typing import Optional
 
@@ -16,6 +17,9 @@ from galehuntui.core.exceptions import (
 )
 from galehuntui.core.models import ToolConfig, ToolResult
 from galehuntui.runner.base import Runner
+
+
+logger = logging.getLogger(__name__)
 
 
 TOOL_IMAGES = {
@@ -190,7 +194,8 @@ class DockerRunner(Runner):
             )
             await process.communicate()
             return process.returncode == 0
-        except Exception:
+        except Exception as e:
+            logger.debug(f"Failed to pull Docker image for {tool_name}: {e}")
             return False
     
     async def check_image_exists(self, tool_name: str) -> bool:
@@ -218,5 +223,6 @@ class DockerRunner(Runner):
             )
             await process.communicate()
             return process.returncode == 0
-        except Exception:
+        except Exception as e:
+            logger.debug(f"Failed to inspect Docker image for {tool_name}: {e}")
             return False

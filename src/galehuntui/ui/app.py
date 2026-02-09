@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 from typing import Any, Optional, Type
 
@@ -22,6 +23,9 @@ from galehuntui.ui.screens.setup import SetupWizardScreen
 from galehuntui.core.config import get_data_dir, get_user_config_path
 from galehuntui.storage.database import Database
 from galehuntui.ui.themes import GALEHUNT_THEMES
+
+
+logger = logging.getLogger(__name__)
 
 
 class GaleHunTUIApp(App):
@@ -82,8 +86,10 @@ class GaleHunTUIApp(App):
             db_path = data_dir / "galehuntui.db"
             self.db = Database(db_path)
             self.db.init_db()
-        except Exception:
+        except Exception as e:
+            logger.exception(f"Database initialization failed: {e}")
             self.db = None
+            self.notify("Database initialization failed. Running with limited data features.", severity="error")
 
     def _load_theme_from_config(self) -> str:
         LEGACY_THEME_MAPPING = {
@@ -115,7 +121,8 @@ class GaleHunTUIApp(App):
             
             return DEFAULT_THEME
             
-        except Exception:
+        except Exception as e:
+            logger.warning(f"Failed to load theme from config, using default: {e}")
             return DEFAULT_THEME
 
     def action_cycle_themes(self) -> None:
