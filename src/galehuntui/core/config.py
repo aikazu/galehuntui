@@ -249,6 +249,41 @@ def load_profile_config(profile_name: str | None = None) -> ScanProfile | dict[s
     return profiles
 
 
+def save_profiles_config(profiles: dict[str, ScanProfile]) -> None:
+    """Persist scan profiles to profiles.yaml.
+
+    Args:
+        profiles: Mapping of profile id -> ScanProfile
+
+    Raises:
+        ConfigError: If file cannot be written
+    """
+    profiles_path = get_config_dir() / "profiles.yaml"
+    profiles_path.parent.mkdir(parents=True, exist_ok=True)
+
+    serialized_profiles: dict[str, Any] = {}
+    for profile_name in sorted(profiles):
+        profile = profiles[profile_name]
+        profile_data: dict[str, Any] = {
+            "description": profile.description,
+            "steps": profile.steps,
+            "concurrency": profile.concurrency,
+            "rate_limit": profile.rate_limit,
+            "timeout": profile.timeout,
+        }
+        if profile.use_cases:
+            profile_data["use_cases"] = profile.use_cases
+        serialized_profiles[profile_name] = profile_data
+
+    payload = {"profiles": serialized_profiles}
+
+    try:
+        with profiles_path.open("w") as f:
+            yaml.safe_dump(payload, f, sort_keys=False)
+    except OSError as e:
+        raise ConfigError(f"Failed to write profiles file: {e}") from e
+
+
 # ============================================================================
 # Modes Configuration Loader
 # ============================================================================

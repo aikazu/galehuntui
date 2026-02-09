@@ -22,6 +22,11 @@ from galehuntui.orchestrator.pipeline import (
     STAGE_DEPENDENCIES,
     STAGE_TOOL_MAP,
 )
+from galehuntui.orchestrator.factory import (
+    create_pipeline_orchestrator,
+    load_scan_profile,
+    load_tool_adapters,
+)
 
 
 __all__ = [
@@ -39,4 +44,7 @@ __all__ = [
     "PipelineOrchestrator",
     "STAGE_DEPENDENCIES",
     "STAGE_TOOL_MAP",
+    "create_pipeline_orchestrator",
+    "load_scan_profile",
+    "load_tool_adapters",
 ]

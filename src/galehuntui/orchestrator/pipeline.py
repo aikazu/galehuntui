@@ -869,12 +869,12 @@ class PipelineOrchestrator:
         resume_id: Optional[str] = None,
     ) -> RunStateManager:
         if resume_id and self.db:
-            completed_steps = self.db.get_completed_step_names(resume_id)
             self.state = await RunStateManager.resume(
                 resume_id,
                 self.db,
                 self.run_config,
             )
+            completed_steps = self.state.get_completed_step_names()
             logger.info(f"Resuming run {resume_id}, {len(completed_steps)} steps complete")
         else:
             completed_steps = set()

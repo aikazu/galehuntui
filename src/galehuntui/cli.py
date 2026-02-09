@@ -143,11 +143,8 @@ def run(
     This runs the orchestrator in headless mode without the TUI.
     """
     import asyncio
-    from galehuntui.core.config import load_scope_config, load_profile_config
-    from galehuntui.core.models import ScopeConfig, ScanProfile
-    from galehuntui.orchestrator.pipeline import PipelineOrchestrator
+    from galehuntui.orchestrator.factory import create_pipeline_orchestrator, load_scan_profile
     from galehuntui.storage.database import Database
-    from galehuntui.tools.installer import ToolInstaller
     
     try:
         console.print(Panel.fit(
@@ -163,22 +160,12 @@ def run(
             console.print("[red]Error:[/red] Invalid target domain")
             raise typer.Exit(code=1)
         
-        if scope:
-            console.print(f"[blue]Loading scope from:[/blue] {scope}")
-            scope_config = load_scope_config(scope)
-        else:
-            scope_config = ScopeConfig(
-                target_domain=target,
-                allowlist=[f"*.{target}", target],
-                denylist=[],
-            )
-        
         console.print(f"[blue]Loading profile:[/blue] {profile}")
-        loaded_profile = load_profile_config(profile)
-        if not isinstance(loaded_profile, ScanProfile):
-            console.print(f"[red]Error:[/red] Profile '{profile}' not found")
+        try:
+            scan_profile = load_scan_profile(profile)
+        except ValueError as exc:
+            console.print(f"[red]Error:[/red] {exc}")
             raise typer.Exit(code=1)
-        scan_profile: ScanProfile = loaded_profile
         
         data_dir = get_data_dir()
         runs_dir = get_runs_dir()
@@ -196,43 +183,17 @@ def run(
         db = Database(db_path)
         db.init_db()
         
-        tools_dir = Path.cwd() / "tools"
-        installer = ToolInstaller(tools_dir)
-        
-        adapters = {}
-        adapter_modules = {
-            "subfinder": "galehuntui.tools.adapters.subfinder",
-            "dnsx": "galehuntui.tools.adapters.dnsx",
-            "httpx": "galehuntui.tools.adapters.httpx",
-            "katana": "galehuntui.tools.adapters.katana",
-            "gau": "galehuntui.tools.adapters.gau",
-            "nuclei": "galehuntui.tools.adapters.nuclei",
-            "dalfox": "galehuntui.tools.adapters.dalfox",
-            "ffuf": "galehuntui.tools.adapters.ffuf",
-            "sqlmap": "galehuntui.tools.adapters.sqlmap",
-        }
-        
-        for tool_name in scan_profile.steps:
-            if tool_name in adapter_modules:
-                try:
-                    import importlib
-                    mod = importlib.import_module(adapter_modules[tool_name])
-                    adapter_class = getattr(mod, f"{tool_name.capitalize()}Adapter", None)
-                    if adapter_class:
-                        bin_path = installer.bin_dir / tool_name
-                        adapters[tool_name] = adapter_class(bin_path)
-                except (ImportError, AttributeError) as e:
-                    if verbose:
-                        console.print(f"[yellow]Warning:[/yellow] Could not load adapter for {tool_name}: {e}")
-        
-        pipeline = PipelineOrchestrator.create_standard_pipeline(
-            adapters=adapters,
+        if scope:
+            console.print(f"[blue]Loading scope from:[/blue] {scope}")
+
+        pipeline = create_pipeline_orchestrator(
             target=target,
-            profile=scan_profile,
-            scope=scope_config,
+            profile_name=scan_profile.name,
             engagement_mode=mode,
+            db=db,
+            scope_file=scope,
+            tools_dir=Path.cwd() / "tools",
         )
-        pipeline.db = db
         
         async def run_pipeline():
             with Progress(

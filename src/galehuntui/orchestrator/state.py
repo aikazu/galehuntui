@@ -158,7 +158,8 @@ class RunStateManager:
         """
         async with self._lock:
             self.metadata.state = RunState.RUNNING
-            self.metadata.started_at = datetime.now()
+            if self.metadata.started_at is None:
+                self.metadata.started_at = datetime.now()
             
             # Persist run metadata BEFORE any steps are saved (FK constraint)
             if self.db is not None:
@@ -246,6 +247,8 @@ class RunStateManager:
         async with self._lock:
             if self.metadata.state == RunState.RUNNING:
                 self.metadata.state = RunState.PAUSED
+                if self.db is not None:
+                    self.db.save_run(self.metadata)
                 await self._notify_state_change(RunState.PAUSED)
     
     async def resume_run(self) -> None:
@@ -253,6 +256,8 @@ class RunStateManager:
         async with self._lock:
             if self.metadata.state == RunState.PAUSED:
                 self.metadata.state = RunState.RUNNING
+                if self.db is not None:
+                    self.db.save_run(self.metadata)
                 await self._notify_state_change(RunState.RUNNING)
     
     def register_steps(self, step_names: list[str]) -> None:
@@ -374,6 +379,9 @@ class RunStateManager:
             step.status = StepStatus.SKIPPED
             step.completed_at = datetime.now()
             step.error_message = reason or "Skipped"
+
+            if self.db is not None:
+                self.db.save_step(self.run_id, step)
             
             await self._notify_step_change(step)
     
@@ -596,12 +604,18 @@ class RunStateManager:
         manager = cls(config, run_id=run_id, base_dir=base_dir, db=db)
         manager.metadata = run_meta
         manager._steps = {s.name: s for s in steps}
+        manager._findings = db.get_findings_for_run(run_id)
         
         manager.run_dir = run_meta.run_dir
         manager.artifacts_dir = run_meta.artifacts_dir
         manager.evidence_dir = run_meta.evidence_dir
         manager.reports_dir = run_meta.reports_dir
-        
+
+        manager._hydrate_stage_results_from_steps()
+        manager._update_findings_by_severity()
+        manager.metadata.total_findings = len(manager._findings)
+        manager._recalculate_step_counters()
+
         return manager
     
     def get_completed_step_names(self) -> set[str]:
@@ -609,3 +623,68 @@ class RunStateManager:
             name for name, step in self._steps.items()
             if step.status == StepStatus.COMPLETED
         }
+
+    def _hydrate_stage_results_from_steps(self) -> None:
+        """Rebuild stage results map from persisted completed steps."""
+        for step in self._steps.values():
+            if step.status != StepStatus.COMPLETED:
+                continue
+
+            try:
+                stage = PipelineStage(step.name)
+            except ValueError:
+                logger.debug("Skipping unknown step during resume hydration: %s", step.name)
+                continue
+
+            output_data = self._load_output_data(step.output_path)
+            if output_data is None:
+                logger.warning(
+                    "Missing output artifact for completed step '%s'; marking pending for re-run",
+                    step.name,
+                )
+                step.status = StepStatus.PENDING
+                step.started_at = None
+                step.completed_at = None
+                step.duration = None
+                step.error_message = "Missing output artifact; will re-run on resume"
+                if self.db is not None:
+                    self.db.save_step(self.run_id, step)
+                continue
+
+            self._stage_results[stage] = StageResult(
+                stage=stage,
+                status=StepStatus.COMPLETED,
+                output_data=output_data,
+                output_path=step.output_path,
+                findings=[],
+                duration=step.duration or 0.0,
+            )
+
+    def _load_output_data(self, output_path: Optional[Path]) -> Optional[list[str]]:
+        """Load line-based output data from a persisted artifact file.
+
+        Returns None if the artifact is missing or unreadable. Returns an empty list
+        for existing empty output artifacts.
+        """
+        if output_path is None or not output_path.exists() or not output_path.is_file():
+            return None
+
+        try:
+            content = output_path.read_text().strip()
+        except OSError as exc:
+            logger.warning("Failed to read stage output file %s: %s", output_path, exc)
+            return None
+
+        if not content:
+            return []
+        return [line for line in content.splitlines() if line]
+
+    def _recalculate_step_counters(self) -> None:
+        """Recalculate metadata counters from current step states."""
+        self.metadata.total_steps = len(self._steps)
+        self.metadata.completed_steps = sum(
+            1 for step in self._steps.values() if step.status == StepStatus.COMPLETED
+        )
+        self.metadata.failed_steps = sum(
+            1 for step in self._steps.values() if step.status == StepStatus.FAILED
+        )
