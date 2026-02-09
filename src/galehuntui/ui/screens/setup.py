@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import sys
 import shutil
 import os
@@ -20,7 +21,11 @@ from textual.reactive import reactive
 from textual.binding import Binding
 
 from galehuntui.tools.installer import ToolInstaller
+from galehuntui.core.exceptions import ToolInstallError
 from galehuntui.core.config import get_data_dir, get_config_dir
+
+
+logger = logging.getLogger(__name__)
 
 class WizardStep(Container):
     """Base class for wizard steps."""
@@ -55,7 +60,7 @@ class SystemCheckStep(WizardStep):
                 Label("Checking Write Permissions...", id="check_perms"),
                 id="checks_container"
             ),
-            Button("Next", variant="primary", id="next_step", disabled=True),
+            Button("Continue", variant="primary", id="next_step", disabled=True),
             classes="step-content"
         )
 
@@ -66,7 +71,7 @@ class ToolInstallStep(WizardStep):
             Label("Installing core tools from registry...", classes="wizard-subtitle"),
             ProgressBar(total=100, show_eta=True, id="install_progress"),
             Label("Waiting to start...", id="install_status"),
-            Button("Next", variant="primary", id="next_step", disabled=True),
+            Button("Continue", variant="primary", id="next_step", disabled=True),
             classes="step-content"
         )
 
@@ -151,7 +156,7 @@ class SetupWizardScreen(Screen):
     """
 
     BINDINGS = [
-        Binding("escape", "quit_wizard", "Quit Setup"),
+        Binding("escape", "quit_wizard", "Exit Setup"),
     ]
 
     current_step = reactive("welcome")
@@ -229,18 +234,22 @@ class SetupWizardScreen(Screen):
             # Check Write Permissions
             perm_lbl = self.query_one("#check_perms", Label)
             data_dir = get_data_dir()
+            perm_ok = False
+
             try:
                 data_dir.mkdir(parents=True, exist_ok=True)
+            except OSError as e:
+                logger.warning(f"Setup write-permission check failed for {data_dir}: {e}")
+                perm_lbl.update(f"❌ No write access to {data_dir}")
+                perm_lbl.styles.color = "red"
+            else:
                 if os.access(data_dir, os.W_OK):
                     perm_lbl.update(f"✅ Write access to {data_dir}")
                     perm_lbl.styles.color = "green"
                     perm_ok = True
                 else:
-                    raise PermissionError
-            except Exception:
-                perm_lbl.update(f"❌ No write access to {data_dir}")
-                perm_lbl.styles.color = "red"
-                perm_ok = False
+                    perm_lbl.update(f"❌ No write access to {data_dir}")
+                    perm_lbl.styles.color = "red"
             
             if py_ok and git_ok and perm_ok:
                 self.query_one("#check Button").disabled = False
@@ -264,7 +273,8 @@ class SetupWizardScreen(Screen):
                 # Load registry
                 registry = installer.load_registry()
                 tools = list(registry.get("tools", {}).keys())
-            except Exception as e:
+            except (ToolInstallError, OSError, ValueError) as e:
+                logger.warning(f"Setup initialization failed: {e}")
                 status.update(f"❌ Initialization failed: {e}")
                 status.styles.color = "red"
                 return
@@ -284,7 +294,8 @@ class SetupWizardScreen(Screen):
                     # Verify
                     if not installer.verify_tool(tool):
                         failed.append(f"{tool} (verification failed)")
-                except Exception as e:
+                except (ToolInstallError, OSError, ValueError) as e:
+                    logger.warning(f"Setup tool install failed for {tool}: {e}")
                     failed.append(f"{tool} ({str(e)})")
                 
                 bar.advance(1)

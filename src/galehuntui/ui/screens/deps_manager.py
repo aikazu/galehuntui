@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -9,6 +10,7 @@ from textual.containers import Container, Horizontal, Vertical
 from textual.screen import Screen
 from textual.widgets import Button, DataTable, Footer, Header, Label
 
+from galehuntui.core.exceptions import DependencyError
 from galehuntui.core.config import get_deps_dir
 from galehuntui.tools.deps.manager import (
     DependencyManager,
@@ -17,14 +19,17 @@ from galehuntui.tools.deps.manager import (
 )
 
 
+logger = logging.getLogger(__name__)
+
+
 class DepsManagerScreen(Screen):
     """Screen for managing dependencies (Wordlists, Templates)."""
 
     BINDINGS = [
         ("escape", "app.pop_screen", "Back"),
-        ("u", "update_dep", "Update"),
-        ("i", "install_dep", "Install"),
-        ("v", "verify_dep", "Verify"),
+        ("u", "update_dep", "Update Dependency"),
+        ("i", "install_dep", "Install Dependency"),
+        ("v", "verify_dep", "Verify Dependency"),
     ]
 
     def __init__(self, name: str | None = None, id: str | None = None, classes: str | None = None) -> None:
@@ -39,6 +44,10 @@ class DepsManagerScreen(Screen):
         yield Header()
         
         with Container(classes="tools-container"):
+            with Horizontal(id="deps-overview", classes="surface-card"):
+                yield Label("Dependency Packs", classes="panel-title")
+                yield Label("I Install | U Update | V Verify", classes="shortcut-hint")
+
             with Vertical(classes="tools-section"):
                 yield Label("Nuclei Templates", classes="section-title")
                 yield DataTable(id="templates_table", cursor_type="row")
@@ -48,9 +57,9 @@ class DepsManagerScreen(Screen):
                 yield DataTable(id="wordlists_table", cursor_type="row")
             
             with Horizontal(classes="controls-bar"):
-                yield Button("Install Selected", variant="primary", id="btn_install")
-                yield Button("Update Selected", variant="default", id="btn_update")
-                yield Button("Verify Selected", variant="default", id="btn_verify")
+                yield Button("Install Selected Dependency", variant="primary", id="btn_install")
+                yield Button("Update Selected Dependency", variant="default", id="btn_update")
+                yield Button("Verify Selected Dependency", variant="default", id="btn_verify")
 
         yield Footer()
 
@@ -117,7 +126,8 @@ class DepsManagerScreen(Screen):
                 else:
                     w_table.add_row(*row, key=dep.id)
                     
-        except Exception as e:
+        except (DependencyError, OSError, ValueError) as e:
+            logger.warning(f"Failed to load dependencies: {e}")
             self.notify(f"Failed to load dependencies: {e}", severity="error")
 
     @work
@@ -132,7 +142,8 @@ class DepsManagerScreen(Screen):
             await self.manager.install(self.selected_dep_id)
             self.notify(f"Installed {self.selected_dep_id}", severity="information")
             _ = self.load_deps()
-        except Exception as e:
+        except (DependencyError, OSError, ValueError) as e:
+            logger.warning(f"Failed to install dependency {self.selected_dep_id}: {e}")
             self.notify(f"Failed to install: {e}", severity="error")
 
     @work
@@ -150,7 +161,8 @@ class DepsManagerScreen(Screen):
             else:
                 self.notify(f"No update available for {self.selected_dep_id}", severity="warning")
             _ = self.load_deps()
-        except Exception as e:
+        except (DependencyError, OSError, ValueError) as e:
+            logger.warning(f"Failed to update dependency {self.selected_dep_id}: {e}")
             self.notify(f"Failed to update: {e}", severity="error")
 
     @work
@@ -169,7 +181,8 @@ class DepsManagerScreen(Screen):
             
             # Refresh to update status if it changed
             _ = self.load_deps()
-        except Exception as e:
+        except (DependencyError, OSError, ValueError) as e:
+            logger.warning(f"Failed to verify dependency {self.selected_dep_id}: {e}")
             self.notify(f"Failed to verify: {e}", severity="error")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:

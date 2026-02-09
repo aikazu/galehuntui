@@ -29,7 +29,8 @@ def count_output_items(output_path: Path | None) -> int:
         if not content:
             return 0
         return len(content.split('\n'))
-    except Exception:
+    except Exception as e:
+        logger.debug(f"Failed to count output items from {output_path}: {e}")
         return 0
 
 class RunDetailScreen(Screen):
@@ -37,13 +38,13 @@ class RunDetailScreen(Screen):
     
     BINDINGS = [
         ("escape", "app.pop_screen", "Back"),
-        ("p", "toggle_pause", "Pause/Resume"),
+        ("p", "toggle_pause", "Pause Or Resume"),
         ("c", "cancel_run", "Cancel Run"),
-        ("l", "focus_logs", "Logs"),
-        ("s", "focus_subdomains", "Subdomains"),
-        ("d", "focus_livedomain", "Live Domain"),
-        ("f", "focus_findings", "Findings"),
-        ("i", "focus_info", "Info"),
+        ("l", "focus_logs", "Focus Logs"),
+        ("s", "focus_subdomains", "Focus Subdomains"),
+        ("d", "focus_livedomain", "Focus Live Domains"),
+        ("f", "focus_findings", "Focus Findings"),
+        ("i", "focus_info", "Focus Info"),
     ]
 
     CSS = """
@@ -53,7 +54,7 @@ class RunDetailScreen(Screen):
 
     /* Header Info Bar - Compact */
     .run-header {
-        height: 3;
+        height: 4;
         background: $surface;
         border: solid $border;
         margin-bottom: 1;
@@ -100,6 +101,12 @@ class RunDetailScreen(Screen):
     }
     
     .header-duration {
+        color: $text-muted;
+    }
+
+    .header-shortcuts {
+        width: 1fr;
+        text-align: right;
         color: $text-muted;
     }
 
@@ -233,6 +240,7 @@ class RunDetailScreen(Screen):
         self.run_id = run_id
         self._polling = False
         self._seen_finding_ids: Set[str] = set()
+        self._seen_step_row_ids: Set[str] = set()
         self._last_step_states: dict[str, str] = {}
         self._db_path = get_data_dir() / "galehuntui.db"
 
@@ -247,6 +255,7 @@ class RunDetailScreen(Screen):
                     yield Label("--", id="lbl-target", classes="header-item header-target")
                     yield Label("--", id="lbl-status", classes="header-item header-status")
                     yield Label("--", id="lbl-duration", classes="header-item header-duration")
+                    yield Label("L Logs | S Subdomain | D Live | F Findings | I Info", classes="header-item header-shortcuts")
 
             # Stats Bar
             with Horizontal(classes="stats-bar"):
@@ -271,9 +280,9 @@ class RunDetailScreen(Screen):
                     with Container(classes="steps-container"):
                         yield DataTable(id="steps-table")
                     with Vertical(classes="pipeline-controls"):
-                        yield Button("Pause", variant="warning", id="btn-pause")
-                        yield Button("Cancel", variant="error", id="btn-cancel")
-                        yield Button("Export", variant="primary", id="btn-export")
+                        yield Button("Pause Run", variant="warning", id="btn-pause")
+                        yield Button("Cancel Run", variant="error", id="btn-cancel")
+                        yield Button("Export Report", variant="primary", id="btn-export")
 
                 # Right: Logs/Findings with 5 tabs
                 with Container(classes="content-panel"):
@@ -282,7 +291,7 @@ class RunDetailScreen(Screen):
                             yield RichLog(highlight=True, markup=True, id="run-log")
                         with TabPane("Subdomain (0)", id="tab-subdomain"):
                             yield DataTable(id="subdomain-table")
-                        with TabPane("Live Domain (0)", id="tab-livedomain"):
+                        with TabPane("Live Hosts (0)", id="tab-livedomain"):
                             yield DataTable(id="livedomain-table")
                         with TabPane("Findings (0)", id="tab-findings"):
                             yield DataTable(id="findings-table")
@@ -430,11 +439,11 @@ class RunDetailScreen(Screen):
         # Buttons
         pause_btn = self.query_one("#btn-pause", Button)
         if run.state == RunState.RUNNING:
-            pause_btn.label = "Pause"
+            pause_btn.label = "Pause Run"
             pause_btn.variant = "warning"
             pause_btn.disabled = False
         elif run.state == RunState.PAUSED:
-            pause_btn.label = "Resume"
+            pause_btn.label = "Resume Run"
             pause_btn.variant = "success"
             pause_btn.disabled = False
         else:
@@ -508,11 +517,11 @@ class RunDetailScreen(Screen):
                         log.write(f"  [dim]{step.error_message}[/]")
 
             # Update or add row
-            try:
-                table.get_row_index(row_key)
+            if row_key in self._seen_step_row_ids:
                 table.update_cell(row_key, "Step", display)
-            except Exception:
+            else:
                 table.add_row(display, key=row_key)
+                self._seen_step_row_ids.add(row_key)
 
     def _update_findings(self, findings: list[Finding]) -> None:
         """Update findings tables - categorized into Subdomain, Live Domain, Findings, and Info tabs."""
@@ -585,13 +594,12 @@ class RunDetailScreen(Screen):
                         log.write(f"[{color}]⚠[/] {finding.severity.value.upper()}: {finding.type} @ {finding.host}")
 
         try:
-            from textual.widgets import TabPane
             self.query_one("#tab-subdomain", TabPane).update(f"Subdomain ({subdomain_count})")
-            self.query_one("#tab-livedomain", TabPane).update(f"Live Domain ({livedomain_count})")
+            self.query_one("#tab-livedomain", TabPane).update(f"Live Hosts ({livedomain_count})")
             self.query_one("#tab-findings", TabPane).update(f"Findings ({findings_count})")
             self.query_one("#tab-info", TabPane).update(f"Info ({info_count})")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"Failed to update findings tab labels: {e}")
 
     def _log_initial(self, run: RunMetadata) -> None:
         """Log initial state."""

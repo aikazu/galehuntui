@@ -4,6 +4,7 @@ from uuid import uuid4
 from datetime import datetime
 import asyncio
 import importlib
+import logging
 
 from textual.screen import Screen
 from textual.containers import Container, Vertical, Horizontal
@@ -22,6 +23,7 @@ from textual.widgets import (
 )
 from textual import on, work
 from textual.app import ComposeResult
+from textual.binding import Binding
 
 from galehuntui.core.constants import EngagementMode
 from galehuntui.core.config import load_profile_config, get_config_dir, load_scope_config, get_data_dir
@@ -32,8 +34,15 @@ from galehuntui.orchestrator.pipeline import PipelineOrchestrator
 from galehuntui.orchestrator.state import RunStateManager
 from galehuntui.ui.screens.run_detail import RunDetailScreen
 
+
+logger = logging.getLogger(__name__)
+
 class NewRunScreen(Screen):
     """Screen for configuring and starting a new scan run."""
+
+    BINDINGS = [
+        Binding("escape", "app.pop_screen", "Back"),
+    ]
 
     CSS = """
     NewRunScreen {
@@ -41,35 +50,70 @@ class NewRunScreen(Screen):
     }
 
     #form-container {
-        width: 60;
+        width: 110;
         height: auto;
-        border: solid $primary;
-        padding: 1 2;
+        border: solid $border;
+        padding: 1;
         background: $surface;
+    }
+
+    #form-head {
+        height: auto;
+        padding: 0 1 1 1;
+        border-bottom: solid $border;
+        margin-bottom: 1;
+    }
+
+    #form-title {
+        color: $primary;
+        text-style: bold;
+    }
+
+    #form-subtitle {
+        color: $text-muted;
+    }
+
+    #form-grid {
+        height: auto;
+        layout: horizontal;
+        margin-bottom: 1;
+    }
+
+    .form-column {
+        width: 1fr;
+        height: auto;
+        padding: 0 1;
+    }
+
+    .group-title {
+        color: $primary;
+        text-style: bold;
+        margin-bottom: 1;
     }
 
     .form-group {
         margin-bottom: 1;
     }
 
-    Label {
-        margin-bottom: 1;
+    .form-group Label {
         color: $text-muted;
+        margin-bottom: 1;
     }
 
     RadioSet {
-        background: transparent;
-        border: none;
-        padding: 0;
+        border: solid $border;
+        padding: 1;
+        background: $background;
     }
 
     RadioButton {
         width: 100%;
-        background: transparent;
     }
 
     #btn-container {
-        margin-top: 2;
+        margin-top: 1;
+        padding-top: 1;
+        border-top: solid $border;
         align: right middle;
         height: auto;
     }
@@ -77,32 +121,47 @@ class NewRunScreen(Screen):
     Button {
         margin-left: 1;
     }
+
+    .run-hint {
+        color: $text-muted;
+        margin-top: 1;
+    }
     """
 
     def compose(self) -> ComposeResult:
         yield Header()
         with Container(id="form-container"):
-            yield Label("New Scan Configuration", classes="bold text-primary", id="form-title")
-            
-            with Vertical(classes="form-group"):
-                yield Label("Target Domain / URL")
-                yield Input(placeholder="e.g., example.com", id="input-target")
-            
-            with Vertical(classes="form-group"):
-                yield Label("Scan Profile")
-                yield Select([], prompt="Select Profile", id="select-profile")
-            
-            with Vertical(classes="form-group"):
-                yield Label("Engagement Mode")
-                with RadioSet(id="radio-mode"):
-                    for mode in EngagementMode:
-                        label = mode.value.title().replace("_", " ")
-                        # Default to Authorized (this needs to be handled via value property or post-mount)
-                        yield RadioButton(label, id=f"mode-{mode.value}")
+            with Vertical(id="form-head"):
+                yield Label("Launch New Scan", id="form-title")
+                yield Label("Configure target, profile, and operational constraints before execution.", id="form-subtitle")
 
-            with Vertical(classes="form-group"):
-                yield Label("Scope Configuration")
-                yield Select([], prompt="Select Scope File", id="select-scope")
+            with Horizontal(id="form-grid"):
+                with Vertical(classes="form-column"):
+                    yield Label("Target & Profile", classes="group-title")
+
+                    with Vertical(classes="form-group"):
+                        yield Label("Target Domain / URL")
+                        yield Input(placeholder="e.g., example.com", id="input-target")
+
+                    with Vertical(classes="form-group"):
+                        yield Label("Scan Profile")
+                        yield Select([], prompt="Select Profile", id="select-profile")
+
+                    with Vertical(classes="form-group"):
+                        yield Label("Scope Configuration")
+                        yield Select([], prompt="Select Scope File", id="select-scope")
+
+                with Vertical(classes="form-column"):
+                    yield Label("Execution Mode", classes="group-title")
+
+                    with Vertical(classes="form-group"):
+                        yield Label("Engagement Mode")
+                        with RadioSet(id="radio-mode"):
+                            for mode in EngagementMode:
+                                label = mode.value.title().replace("_", " ")
+                                yield RadioButton(label, id=f"mode-{mode.value}")
+
+                    yield Label("Tip: Authorized mode is safest for repeatable testing. Esc returns to the dashboard.", classes="run-hint")
 
             with Collapsible(title="Advanced Options"):
                 yield Checkbox("Generate HTML Report", value=True, id="chk-html")
@@ -112,7 +171,7 @@ class NewRunScreen(Screen):
             
             with Horizontal(id="btn-container"):
                 yield Button("Cancel", variant="error", id="btn-cancel")
-                yield Button("Start Run", variant="primary", id="btn-start")
+                yield Button("Start Scan", variant="primary", id="btn-start")
         yield Footer()
 
     def on_mount(self) -> None:
@@ -256,6 +315,9 @@ class NewRunScreen(Screen):
             scope_config = load_scope_config(scope_file)
             
             profiles = load_profile_config()
+            if not isinstance(profiles, dict):
+                raise ValueError("Invalid profiles configuration format")
+
             if profile_name not in profiles:
                 raise ValueError(f"Profile {profile_name} not found")
             scan_profile = profiles[profile_name]
@@ -308,7 +370,8 @@ class NewRunScreen(Screen):
                         adapter_class = getattr(mod, f"{tool_name.capitalize()}Adapter", None)
                         if adapter_class:
                             adapters[tool_name] = adapter_class(bin_dir)
-                    except Exception as e:
+                    except (ImportError, AttributeError, TypeError, ValueError, OSError) as e:
+                        logger.warning(f"Failed to load adapter {tool_name}: {e}")
                         # Continue with warning
                         self.app.notify(f"Warning: Failed to load {tool_name}: {e}", severity="warning")
 
@@ -337,4 +400,5 @@ class NewRunScreen(Screen):
             self.app.notify(f"Run {run_id} completed successfully!", severity="information")
             
         except Exception as e:
+            logger.exception(f"Run {run_id} execution failed: {e}")
             self.app.notify(f"Run {run_id} failed: {e}", severity="error")

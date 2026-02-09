@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -27,29 +28,32 @@ from galehuntui.core.config import get_user_config_path, get_logs_dir
 # We use workspace-isolated path for user settings
 
 
+logger = logging.getLogger(__name__)
+
+
 class SettingsScreen(Screen):
     """Settings configuration screen."""
 
     CSS = """
     SettingsScreen {
         layout: horizontal;
-        background: #0f111a;
+        background: $background;
     }
 
     #sidebar {
         width: 30;
         height: 100%;
         dock: left;
-        background: #1a1c29;
-        border-right: solid #2e344d;
+        background: $surface;
+        border-right: solid $border;
     }
 
     #sidebar-title {
         padding: 1 2;
-        background: #26293b;
+        background: $panel;
         width: 100%;
         text-style: bold;
-        color: #00f2ea;
+        color: $primary;
     }
 
     #sidebar-list {
@@ -59,18 +63,19 @@ class SettingsScreen(Screen):
     ListItem {
         padding: 1 2;
         margin-bottom: 1;
-        background: #1a1c29;
-        color: #e2e8f0;
+        background: $surface;
+        color: $text;
+        border: solid $border;
     }
 
     ListItem:hover {
-        background: #26293b;
+        background: $panel;
     }
 
     ListItem.-selected {
-        background: #26293b;
-        color: #00f2ea;
-        border-left: wide #00f2ea;
+        background: $panel;
+        color: $primary;
+        border-left: heavy $primary;
     }
 
     #content {
@@ -94,13 +99,13 @@ class SettingsScreen(Screen):
     }
 
     .setting-label {
-        color: #00f2ea;
+        color: $primary;
         text-style: bold;
         margin-bottom: 1;
     }
     
     .setting-description {
-        color: #64748b;
+        color: $text-muted;
         margin-bottom: 1;
         text-style: italic;
     }
@@ -112,18 +117,23 @@ class SettingsScreen(Screen):
         padding-right: 2;
         padding-top: 1;
         padding-bottom: 1;
-        border-top: solid #2e344d;
-        background: #1a1c29;
+        border-top: solid $border;
+        background: $surface;
     }
 
     #btn-cancel {
         margin-right: 2;
     }
+
+    #save-bar Label {
+        width: 1fr;
+        content-align: left middle;
+    }
     """
 
     BINDINGS = [
         Binding("escape", "app.pop_screen", "Back"),
-        Binding("ctrl+s", "save_settings", "Save"),
+        Binding("ctrl+s", "save_settings", "Save Settings"),
     ]
 
     def compose(self) -> ComposeResult:
@@ -220,8 +230,9 @@ class SettingsScreen(Screen):
 
                 # Save Bar
                 with Horizontal(id="save-bar"):
+                    yield Label("Esc Back | Ctrl+S Save", classes="shortcut-hint")
                     yield Button("Cancel", variant="error", id="btn-cancel")
-                    yield Button("Save Changes", variant="primary", id="btn-save")
+                    yield Button("Save Settings", variant="primary", id="btn-save")
 
         yield Footer()
 
@@ -276,7 +287,8 @@ class SettingsScreen(Screen):
             default_log_path = get_logs_dir() / "app.log"
             self.query_one("#input-log-path", Input).value = logging.get("file_path", str(default_log_path))
 
-        except Exception as e:
+        except (OSError, yaml.YAMLError, TypeError, ValueError) as e:
+            logger.warning(f"Failed to load settings from {config_path}: {e}")
             self.notify(f"Failed to load settings: {e}", severity="error")
 
     def on_list_view_selected(self, event: ListView.Selected) -> None:
@@ -335,7 +347,8 @@ class SettingsScreen(Screen):
             
         except ValueError as e:
             self.notify(f"Invalid input: {e}", severity="error")
-        except Exception as e:
+        except (OSError, yaml.YAMLError, TypeError) as e:
+            logger.warning(f"Failed to save settings to {config_path}: {e}")
             self.notify(f"Failed to save settings: {e}", severity="error")
     
     @on(Button.Pressed, "#btn-cancel")

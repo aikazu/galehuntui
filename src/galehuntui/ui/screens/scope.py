@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 from typing import Dict, Any, Optional
 import yaml
@@ -21,14 +22,17 @@ from textual.binding import Binding
 
 from galehuntui.core.config import get_config_dir, get_user_config_path
 
+
+logger = logging.getLogger(__name__)
+
 class ScopeEditorScreen(Screen):
     """Screen for editing scope configurations."""
     
     BINDINGS = [
         Binding("escape", "app.pop_screen", "Back"),
-        Binding("ctrl+s", "save_scope", "Save"),
-        Binding("v", "validate_scope", "Validate"),
-        Binding("n", "new_scope", "New"),
+        Binding("ctrl+s", "save_scope", "Save Scope"),
+        Binding("v", "validate_scope", "Validate Scope"),
+        Binding("n", "new_scope", "Create Scope"),
     ]
 
     CSS = """
@@ -40,8 +44,8 @@ class ScopeEditorScreen(Screen):
     .scope-sidebar {
         width: 30%;
         height: 100%;
-        border-right: solid #2e344d;
-        background: #1a1c29;
+        border-right: solid $border;
+        background: $surface;
         padding: 1;
     }
     
@@ -57,18 +61,18 @@ class ScopeEditorScreen(Screen):
     }
     
     .form-label {
-        color: #64748b;
+        color: $text-muted;
         margin-bottom: 1;
     }
 
     TextArea {
         height: 8;
-        border: solid #2e344d;
-        background: #1a1c29;
+        border: solid $border;
+        background: $surface;
     }
     
     TextArea:focus {
-        border: solid #00f2ea;
+        border: solid $primary;
     }
 
     .sidebar-btn {
@@ -78,8 +82,8 @@ class ScopeEditorScreen(Screen):
 
     #scope-list {
         height: 1fr;
-        border: solid #2e344d;
-        background: #0f111a;
+        border: solid $border;
+        background: $background;
         margin-bottom: 1;
     }
 
@@ -88,6 +92,11 @@ class ScopeEditorScreen(Screen):
         dock: bottom;
         padding-top: 1;
         align: right middle;
+    }
+
+    #scope-shortcuts {
+        width: 1fr;
+        content-align: left middle;
     }
     
     .toolbar Button {
@@ -109,7 +118,7 @@ class ScopeEditorScreen(Screen):
             with Vertical(classes="scope-sidebar"):
                 yield Label("Scope Files", classes="section-title")
                 yield ListView(id="scope-list")
-                yield Button("New Scope", variant="primary", classes="sidebar-btn", id="btn-new")
+                yield Button("Create Scope", variant="primary", classes="sidebar-btn", id="btn-new")
             
             # Main Content
             with VerticalScroll(classes="scope-content"):
@@ -136,7 +145,8 @@ class ScopeEditorScreen(Screen):
                             yield TextArea(id="input-excl-exts")
 
                     with Horizontal(classes="toolbar"):
-                        yield Button("Validate", variant="default", id="btn-validate")
+                        yield Label("N Create | V Validate | Ctrl+S Save", id="scope-shortcuts", classes="shortcut-hint")
+                        yield Button("Validate Scope", variant="default", id="btn-validate")
                         yield Button("Save Scope", variant="primary", id="btn-save")
 
         yield Footer()
@@ -203,8 +213,8 @@ class ScopeEditorScreen(Screen):
                 if not first_valid:
                     first_valid = path
                     
-            except Exception:
-                # Skip invalid files
+            except (OSError, yaml.YAMLError, KeyError, TypeError) as e:
+                logger.debug(f"Skipping invalid scope file {path}: {e}")
                 continue
         
         # Select first if available and nothing selected
@@ -305,7 +315,8 @@ class ScopeEditorScreen(Screen):
             # For simplicity, we just set current_scope_path
             self.current_scope_path = save_path
             
-        except Exception as e:
+        except (OSError, yaml.YAMLError) as e:
+            logger.warning(f"Failed to save scope {save_path}: {e}")
             self.notify(f"Error saving scope: {e}", severity="error")
 
     def action_validate_scope(self) -> None:

@@ -127,7 +127,7 @@ class ProfilesScreen(Screen):
             with Vertical(classes="profiles-sidebar"):
                 yield Label("Profiles", classes="section-title")
                 yield ListView(id="profiles-list")
-                yield Button("New Profile", id="btn-new", variant="default", classes="sidebar-btn")
+                yield Button("Create Profile", id="btn-new", variant="default", classes="sidebar-btn")
             
             # Main Content
             with Vertical(classes="profiles-content"):
@@ -143,19 +143,20 @@ class ProfilesScreen(Screen):
                 
                 with Horizontal(classes="form-row"):
                     with Vertical(classes="form-group-half"):
-                        yield Label("Timeout (sec)")
+                        yield Label("Timeout (seconds)")
                         yield Input(placeholder="300", id="input-timeout", type="integer")
                     with Vertical(classes="form-group-half"):
                         yield Label("Rate Limit")
                         yield Input(placeholder="30/s", id="input-rate")
 
-                yield Label("Pipeline Steps (Tools)", classes="section-title mt-1")
+                yield Label("Pipeline Steps", classes="section-title mt-1")
                 yield SelectionList[str](id="list-steps")
                 
                 with Horizontal(classes="controls-bar"):
-                    yield Button("Delete", variant="error", id="btn-delete", classes="mr-1")
-                    yield Button("Clone", variant="default", id="btn-clone", classes="mr-1")
-                    yield Button("Save", variant="primary", id="btn-save")
+                    yield Static("Esc Back", classes="shortcut-hint")
+                    yield Button("Delete Profile", variant="error", id="btn-delete", classes="mr-1")
+                    yield Button("Clone Profile", variant="default", id="btn-clone", classes="mr-1")
+                    yield Button("Save Profile", variant="primary", id="btn-save")
 
         yield Footer()
 

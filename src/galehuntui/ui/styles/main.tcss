@@ -1,17 +1,14 @@
-/* Global Variables & Theme */
+/* GaleHunTUI Design System */
 
-/* Base Screen */
 Screen {
     background: $background;
     color: $text;
 }
 
-/* Header */
 Header {
+    height: 3;
     background: $surface;
     color: $primary;
-    height: 3;
-    content-align: center middle;
     border-bottom: solid $border;
 }
 
@@ -19,11 +16,10 @@ HeaderTitle {
     text-style: bold;
 }
 
-HeaderIcon {
-    color: $secondary;
+HeaderClock {
+    color: $text-muted;
 }
 
-/* Footer */
 Footer {
     background: $surface;
     color: $text-muted;
@@ -36,60 +32,75 @@ Footer > .footer-key {
 }
 
 Footer > .footer-key.-active {
-    color: $secondary;
+    color: $accent;
 }
 
-/* Buttons */
+/* Core Components */
 Button {
-    background: $panel;
-    color: $primary;
-    border: none;
-    height: 3;
     min-width: 16;
-    content-align: center middle;
+    height: 3;
+    padding: 0 2;
+    border: solid $border;
+    background: $panel;
+    color: $text;
     text-style: bold;
 }
 
 Button:hover {
-    background: $panel;
-    color: $background;
-    tint: $primary 80%;
+    border: solid $primary;
+    background: $surface;
+    color: $primary;
 }
 
 Button:focus {
-    border: wide $primary;
+    border: heavy $primary;
+    background: $surface;
 }
 
+Button.-primary,
 Button.primary {
     background: $primary;
+    border: solid $primary;
     color: $background;
 }
 
-Button.primary:hover {
-    background: $primary;
-    tint: $background 20%;
+Button.-warning,
+Button.warning {
+    background: $warning;
+    border: solid $warning;
+    color: $background;
 }
 
+Button.-success,
+Button.success {
+    background: $success;
+    border: solid $success;
+    color: $background;
+}
+
+Button.-error,
 Button.error {
     background: transparent;
     color: $error;
     border: solid $error;
 }
 
-Button.error:hover {
-    background: $error;
-    color: white;
+Button.-disabled,
+.-disabled {
+    opacity: 45%;
 }
 
-/* Inputs */
-Input {
+Input,
+Select,
+TextArea {
     background: $surface;
-    border: solid $border;
     color: $text;
-    padding: 0 1;
+    border: solid $border;
 }
 
-Input:focus {
+Input:focus,
+Select:focus,
+TextArea:focus {
     border: solid $primary;
 }
 
@@ -97,7 +108,10 @@ Input > .input--placeholder {
     color: $text-muted;
 }
 
-/* DataTable */
+Checkbox {
+    color: $text;
+}
+
 DataTable {
     background: $background;
     border: solid $border;
@@ -115,88 +129,112 @@ DataTable > .datatable--cursor {
 }
 
 DataTable > .datatable--hover {
-    background: $panel 20%;
+    background: $panel;
 }
 
-/* Scrollbar */
+TabbedContent {
+    border: none;
+}
+
+Tab {
+    background: $surface;
+    color: $text-muted;
+    border-bottom: solid $border;
+}
+
+Tab.-active {
+    color: $primary;
+    text-style: bold;
+    border-bottom: heavy $primary;
+}
+
 ScrollBar {
     background: $background;
-    width: 1;
 }
 
 ScrollBar > .scrollbar--thumb {
     background: $border;
 }
 
-/* Typography Helpers */
-.text-primary { color: $primary; }
-.text-secondary { color: $secondary; }
-.text-success { color: $success; }
-.text-warning { color: $warning; }
-.text-error { color: $error; }
-.text-muted { color: $text-muted; }
-
-.bold { text-style: bold; }
-
-/* Run Detail Screen */
-.run-detail-container {
-    padding: 1 2;
-}
-
-.run-info-bar {
-    height: 3;
+/* Typography + Utility */
+.section-title {
     margin-bottom: 1;
-    align: center middle;
-    background: $surface;
-    border: solid $border;
+    color: $primary;
+    text-style: bold;
 }
 
-.info-label {
-    padding: 0 2;
+.panel-title {
+    color: $primary;
+    text-style: bold;
+}
+
+.muted {
     color: $text-muted;
 }
 
-.status-badge {
-    background: $panel;
-    color: $text;
-    padding: 0 2;
+.bold {
     text-style: bold;
 }
 
-.status-badge.running {
-    color: $primary;
+.shortcut-hint {
+    color: $text-muted;
 }
 
-.section-title {
-    margin-top: 1;
-    color: $primary;
-    text-style: bold;
-}
-
-.pipeline-progress {
-    margin-bottom: 2;
+.surface-card {
+    background: $surface;
+    border: solid $border;
+    padding: 1;
 }
 
 .controls-bar {
-    height: 3;
-    margin-top: 1;
+    height: auto;
     align: right middle;
+    padding-top: 1;
 }
 
-#run-log {
-    height: 100%;
-    border: solid $border;
-    background: $surface;
+.controls-bar Button {
+    margin-left: 1;
 }
 
-#findings-table {
-    height: 100%;
-}
-
-/* Tools Manager Screen */
+/* Shared layouts */
 .tools-container {
     padding: 1 2;
     layout: vertical;
+    height: 100%;
+}
+
+#tools-overview {
+    height: 3;
+    align: left middle;
+    margin-bottom: 1;
+    padding: 0 1;
+}
+
+#deps-overview {
+    height: 3;
+    align: left middle;
+    margin-bottom: 1;
+    padding: 0 1;
+}
+
+#deps-overview Label:first-child {
+    width: 1fr;
+}
+
+#summary-core {
+    width: 1fr;
+    color: $primary;
+    text-style: bold;
+}
+
+#summary-optional {
+    width: auto;
+    color: $text-muted;
+}
+
+#summary-shortcuts {
+    width: 1fr;
+    text-align: right;
 }
 
 .tools-section {
@@ -204,20 +242,6 @@ ScrollBar > .scrollbar--thumb {
     margin-bottom: 1;
 }
 
-#core_tools_table, #optional_tools_table {
-    border: solid $border;
-    background: $background;
-}
-
-.controls-bar Button {
-    margin-left: 1;
-}
-
-.-disabled {
-    opacity: 50%;
-}
-
-/* Profiles Screen */
 .profiles-container {
     height: 100%;
     layout: horizontal;
@@ -253,18 +277,20 @@ ScrollBar > .scrollbar--thumb {
     margin-right: 2;
 }
 
+.mr-1 {
+    margin-right: 1;
+}
+
+.mt-1 {
+    margin-top: 1;
+}
+
 .sidebar-btn {
     width: 100%;
     margin-top: 1;
 }
 
-#profiles-list {
-    height: 1fr;
-    border: solid $border;
-    background: $background;
-    margin-bottom: 1;
-}
-
+#profiles-list,
 #list-steps {
     height: 1fr;
     border: solid $border;
@@ -272,11 +298,22 @@ ScrollBar > .scrollbar--thumb {
     margin-bottom: 1;
 }
 
-/* Utilities */
-.mr-1 { margin-right: 1; }
-.mt-1 { margin-top: 1; }
+/* Run Detail */
+.run-detail-container {
+    padding: 1;
+}
 
-/* LogViewWidget */
+#run-log {
+    height: 100%;
+    border: none;
+    background: $background;
+}
+
+#findings-table {
+    height: 100%;
+}
+
+/* Widget styling */
 LogViewWidget {
     height: 100%;
 }
@@ -284,81 +321,42 @@ LogViewWidget {
 LogViewWidget .log-toolbar {
     height: 3;
     background: $surface;
-    padding: 0 1;
     border-bottom: solid $border;
-}
-
-LogViewWidget .log-toolbar Select {
-    width: 20;
-    margin-right: 1;
-}
-
-LogViewWidget .log-toolbar Input {
-    width: 1fr;
-}
-
-LogViewWidget .log-toolbar Static {
-    width: auto;
     padding: 0 1;
-    content-align: center middle;
-    color: $text-muted;
 }
 
 LogViewWidget RichLog {
     height: 1fr;
-    border: solid $border;
     background: $background;
+    border: solid $border;
 }
 
-/* PipelineProgressWidget */
 PipelineProgressWidget {
-    height: auto;
     min-height: 10;
-    border: solid $border;
     background: $background;
+    border: solid $border;
 }
 
 PipelineProgressWidget .progress-header {
     height: 3;
     background: $surface;
-    padding: 0 1;
     border-bottom: solid $border;
+    padding: 0 1;
 }
 
 PipelineProgressWidget .progress-header Label {
-    width: 1fr;
-    content-align: left middle;
     color: $primary;
     text-style: bold;
 }
 
-PipelineProgressWidget .progress-header Static {
-    width: auto;
-    content-align: right middle;
-    padding: 0 1;
-    color: $text-muted;
-}
-
-PipelineProgressWidget .progress-bar-container {
-    height: 1;
-    padding: 0 1;
-    margin-bottom: 1;
-}
-
 PipelineProgressWidget .stages-header {
-    height: 1;
     background: $surface;
     padding: 0 1;
 }
 
 PipelineProgressWidget .stages-header Static {
-    text-style: bold;
     color: $text-muted;
-}
-
-PipelineProgressWidget .stages-list {
-    height: auto;
-    max-height: 20;
+    text-style: bold;
 }
 
 StageRow {
@@ -368,10 +366,6 @@ StageRow {
 
 StageRow:hover {
     background: $panel;
-}
-
-StageRow.running {
-    background: $surface;
 }
 
 StageRow.completed .stage-name {
@@ -386,7 +380,6 @@ StageRow.skipped .stage-name {
     color: $text-muted;
 }
 
-/* FindingsTableWidget */
 FindingsTableWidget {
     height: 100%;
 }
@@ -394,24 +387,8 @@ FindingsTableWidget {
 FindingsTableWidget .findings-toolbar {
     height: 3;
     background: $surface;
-    padding: 0 1;
     border-bottom: solid $border;
-}
-
-FindingsTableWidget .findings-toolbar Select {
-    width: 16;
-    margin-right: 1;
-}
-
-FindingsTableWidget .findings-toolbar Input {
-    width: 1fr;
-}
-
-FindingsTableWidget .findings-toolbar Static {
-    width: auto;
     padding: 0 1;
-    content-align: center middle;
-    color: $text-muted;
 }
 
 FindingsTableWidget DataTable {

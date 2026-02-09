@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -12,13 +13,16 @@ from galehuntui.tools.installer import ToolInstaller
 from galehuntui.core.exceptions import ToolInstallError
 
 
+logger = logging.getLogger(__name__)
+
+
 class ToolsManagerScreen(Screen):
     """Screen for managing external tools."""
 
     BINDINGS = [
         ("escape", "app.pop_screen", "Back"),
-        ("i", "install_tool", "Install Selected"),
-        ("u", "update_tool", "Update Selected"),
+        ("i", "install_tool", "Install Tool"),
+        ("u", "update_tool", "Update Tool"),
         ("a", "install_all", "Install All"),
         ("m", "install_missing", "Install Missing"),
     ]
@@ -36,6 +40,11 @@ class ToolsManagerScreen(Screen):
         yield Header()
         
         with Container(classes="tools-container"):
+            with Horizontal(id="tools-overview", classes="surface-card"):
+                yield Static("Core: --/-- installed", id="summary-core", classes="panel-title")
+                yield Static("Optional: --/-- installed", id="summary-optional", classes="muted")
+                yield Static("I Install | U Update | A Install All | M Install Missing", id="summary-shortcuts", classes="shortcut-hint")
+
             with Vertical(classes="tools-section"):
                 yield Label("Core Tools (Required)", classes="section-title")
                 yield DataTable(id="core_tools_table", cursor_type="row")
@@ -45,11 +54,11 @@ class ToolsManagerScreen(Screen):
                 yield DataTable(id="optional_tools_table", cursor_type="row")
             
             with Horizontal(classes="controls-bar"):
-                yield Button("Install All", variant="primary", id="btn_install_all")
-                yield Button("Update All", variant="default", id="btn_update_all")
-                yield Button("Install Selected", variant="default", id="btn_install")
-                yield Button("Update Selected", variant="default", id="btn_update")
-                yield Button("Install Missing", variant="success", id="btn_install_missing")
+                yield Button("Install All Tools", variant="primary", id="btn_install_all")
+                yield Button("Update All Tools", variant="default", id="btn_update_all")
+                yield Button("Install Selected Tool", variant="default", id="btn_install")
+                yield Button("Update Selected Tool", variant="default", id="btn_update")
+                yield Button("Install Missing Tools", variant="success", id="btn_install_missing")
 
         yield Footer()
 
@@ -84,6 +93,10 @@ class ToolsManagerScreen(Screen):
         try:
             self.registry = self.installer.load_registry()
             tools = self.registry.get("tools", {})
+            core_total = 0
+            core_installed = 0
+            optional_total = 0
+            optional_installed = 0
             
             core_table = self.query_one("#core_tools_table", DataTable)
             opt_table = self.query_one("#optional_tools_table", DataTable)
@@ -95,7 +108,26 @@ class ToolsManagerScreen(Screen):
             sorted_tools = sorted(tools.items())
             
             for tool_id, config in sorted_tools:
+                required = bool(config.get("required", False))
+                installed = self.installer.verify_tool(tool_id)
+
+                if required:
+                    core_total += 1
+                    if installed:
+                        core_installed += 1
+                else:
+                    optional_total += 1
+                    if installed:
+                        optional_installed += 1
+
                 await self._add_tool_row(tool_id, config)
+
+            self.query_one("#summary-core", Static).update(
+                f"Core: {core_installed}/{core_total} installed"
+            )
+            self.query_one("#summary-optional", Static).update(
+                f"Optional: {optional_installed}/{optional_total} installed"
+            )
                 
         except Exception as e:
             self.notify(f"Failed to load tools: {e}", severity="error")
@@ -188,13 +220,27 @@ class ToolsManagerScreen(Screen):
         
         try:
             tools = self.registry.get("tools", {})
+            updated = 0
+            failed: list[str] = []
+
             for tool_id in tools:
                 if self.installer.verify_tool(tool_id):
                     try:
                         await self.installer.install_tool(tool_id)
-                    except Exception:
-                        pass
-            self.notify("All tools updated", severity="information")
+                        updated += 1
+                    except Exception as e:
+                        failed.append(tool_id)
+                        logger.warning(f"Failed to update tool {tool_id}: {e}")
+
+            if failed:
+                self.notify(
+                    f"Updated {updated} tools, failed: {', '.join(failed)}",
+                    severity="warning",
+                )
+            elif updated == 0:
+                self.notify("No installed tools to update", severity="information")
+            else:
+                self.notify("All installed tools updated", severity="information")
         except Exception as e:
             self.notify(f"Update failed: {e}", severity="error")
         finally:
@@ -249,12 +295,12 @@ class ToolsManagerScreen(Screen):
     # Button handlers
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "btn_install":
-            self.action_install_tool()
+            _ = self.action_install_tool()
         elif event.button.id == "btn_update":
-            self.action_update_tool()
+            _ = self.action_update_tool()
         elif event.button.id == "btn_install_all":
-            self.action_install_all()
+            _ = self.action_install_all()
         elif event.button.id == "btn_update_all":
-            self.action_update_all()
+            _ = self.action_update_all()
         elif event.button.id == "btn_install_missing":
-            self.action_install_missing()
+            _ = self.action_install_missing()

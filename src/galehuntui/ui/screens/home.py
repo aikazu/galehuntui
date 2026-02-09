@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -5,7 +6,7 @@ from typing import Optional
 from textual import work
 from textual.app import ComposeResult
 from textual.screen import Screen
-from textual.widgets import Header, Footer, Button, DataTable, Static, Label, Digits
+from textual.widgets import Header, Footer, Button, DataTable, Label
 from textual.containers import Container, Horizontal, Vertical
 from textual.binding import Binding
 
@@ -13,7 +14,9 @@ from galehuntui.storage.database import Database
 from galehuntui.core.config import get_data_dir
 from galehuntui.core.models import RunState, Severity, RunMetadata
 from galehuntui.core.utils import categorize_findings
-from galehuntui.tools.installer import ToolInstaller
+
+
+logger = logging.getLogger(__name__)
 
 class HomeScreen(Screen):
     """The main dashboard screen of GaleHunTUI."""
@@ -23,8 +26,8 @@ class HomeScreen(Screen):
         Binding("t", "tools_manager", "Tools", priority=True),
         Binding("s", "settings", "Settings", priority=True),
         Binding("p", "profiles", "Profiles", priority=True),
-        Binding("d", "delete_run", "Delete", priority=True),
-        Binding("enter", "view_run", "View", priority=True),
+        Binding("d", "delete_run", "Delete Selected Run", priority=True),
+        Binding("enter", "view_run", "Open Selected Run", priority=True),
     ]
 
     CSS = """
@@ -37,7 +40,7 @@ class HomeScreen(Screen):
         height: 100%;
         layout: grid;
         grid-size: 2;
-        grid-columns: 3fr 1.2fr;
+        grid-columns: 3fr 1.3fr;
         grid-rows: auto auto 1fr;
         grid-gutter: 1;
         padding: 1;
@@ -45,39 +48,37 @@ class HomeScreen(Screen):
 
     #hero-panel {
         column-span: 2;
-        height: 7;
-        background: #1a1c29;
-        border: solid #2e344d;
-        padding: 1 2;
-        layout: horizontal;
+        height: 5;
+        background: $surface;
+        border: solid $border;
+        padding: 1;
+        layout: vertical;
     }
 
-    .hero-left {
-        width: 3fr;
-        height: 100%;
-        content-align: left middle;
+    .hero-title-row {
+        layout: horizontal;
+        height: 1;
     }
 
     .hero-title {
         text-style: bold;
-        color: #00f2ea;
+        color: $primary;
+        width: 1fr;
+    }
+
+    .hero-kbd {
+        color: $text-muted;
+        text-align: right;
     }
 
     .hero-subtitle {
-        color: #64748b;
+        color: $text-muted;
     }
 
-    .hero-actions {
-        width: 1fr;
-        height: 100%;
+    .hero-strip {
+        color: $accent;
     }
 
-    .hero-actions Button {
-        width: 100%;
-        margin-bottom: 1;
-    }
-
-    /* Stats Panel */
     #stats-grid {
         column-span: 2;
         height: 7;
@@ -91,14 +92,14 @@ class HomeScreen(Screen):
     .stat-card {
         height: 100%;
         align: center middle;
-        background: #1a1c29;
-        border: solid #2e344d;
+        background: $surface;
+        border: solid $border;
         padding: 1;
     }
 
     .stat-value {
         text-align: center;
-        color: #00f2ea;
+        color: $primary;
         text-style: bold;
         width: 100%;
         content-align: center middle;
@@ -106,39 +107,32 @@ class HomeScreen(Screen):
 
     .stat-label {
         text-align: center;
-        color: #64748b;
+        color: $text-muted;
         width: 100%;
     }
 
-    /* Recent Runs Table */
     #recent-runs-container {
         height: 100%;
-        border: solid #2e344d;
-        background: #0f111a;
+        border: solid $border;
+        background: $background;
         row-span: 1;
+        padding: 1;
     }
 
     DataTable {
-        height: 100%;
-        background: #0f111a;
+        height: 1fr;
+        background: $background;
         border: none;
     }
 
-    DataTable > .datatable--header {
-        background: #1a1c29;
-        color: #00f2ea;
-        text-style: bold;
-    }
-
-    /* Side Panel */
     #side-panel {
         height: 100%;
         layout: vertical;
     }
 
     .panel-header {
-        background: #1a1c29;
-        color: #00f2ea;
+        background: $panel;
+        color: $primary;
         text-style: bold;
         padding: 0 1;
         height: 1;
@@ -152,8 +146,8 @@ class HomeScreen(Screen):
     }
 
     .status-box {
-        background: #1a1c29;
-        border: solid #2e344d;
+        background: $surface;
+        border: solid $border;
         padding: 1;
         height: auto;
         margin-bottom: 1;
@@ -167,12 +161,17 @@ class HomeScreen(Screen):
     }
 
     .status-dot {
-        color: #00ff9d;
+        color: $success;
         margin-right: 1;
     }
 
     .status-text {
-        color: #64748b;
+        color: $text-muted;
+    }
+
+    .hint-line {
+        color: $text-muted;
+        margin-top: 1;
     }
     """
 
@@ -180,10 +179,12 @@ class HomeScreen(Screen):
         yield Header(show_clock=True)
         
         with Container(id="home-container"):
-            with Horizontal(id="hero-panel"):
-                with Vertical(classes="hero-left"):
-                    yield Label("GaleHunTUI", classes="hero-title")
-                    yield Label("Recon → Vulnerability Scanning → Targeted Injection → Reporting", classes="hero-subtitle")
+            with Vertical(id="hero-panel"):
+                with Horizontal(classes="hero-title-row"):
+                    yield Label("GaleHunTUI Command Center", classes="hero-title")
+                    yield Label("N New | Enter View | D Delete", classes="hero-kbd")
+                yield Label("Recon -> Vulnerability Scanning -> Targeted Injection -> Reporting", classes="hero-subtitle")
+                yield Label("Use Ctrl+N for a new run, Ctrl+T to manage tools, and ? for contextual help.", classes="hero-strip")
 
             with Container(id="stats-grid"):
                 yield self._make_stat_card("Total Runs", "-", value_id="stat_total_runs")
@@ -196,20 +197,21 @@ class HomeScreen(Screen):
             with Vertical(id="recent-runs-container"):
                 yield Label("Recent Runs", classes="panel-header")
                 yield DataTable(id="recent_runs_table", cursor_type="row")
+                yield Label("Tip: highlight a row and press Enter to open live telemetry.", classes="hint-line")
 
             # Right: Actions & Status
             with Vertical(id="side-panel"):
                 with Vertical(classes="status-box"):
                     yield Label("Quick Actions", classes="panel-header")
-                    yield Button("New Run (N)", variant="primary", id="btn_new_run", classes="action-button")
-                    yield Button("Tools Manager (T)", id="btn_tools", classes="action-button")
-                    yield Button("Profiles (P)", id="btn_profiles", classes="action-button")
-                    yield Button("Settings (S)", id="btn_settings", classes="action-button")
+                    yield Button("New Run", variant="primary", id="btn_new_run", classes="action-button")
+                    yield Button("Tools", id="btn_tools", classes="action-button")
+                    yield Button("Profiles", id="btn_profiles", classes="action-button")
+                    yield Button("Settings", id="btn_settings", classes="action-button")
 
                 with Vertical(classes="status-box"):
                     yield Label("Run Actions", classes="panel-header")
-                    yield Button("View Selected", id="btn_view_run", classes="action-button")
-                    yield Button("Delete Selected", variant="error", id="btn_delete_run", classes="action-button")
+                    yield Button("Open Selected Run", id="btn_view_run", classes="action-button")
+                    yield Button("Delete Selected Run", variant="error", id="btn_delete_run", classes="action-button")
 
                 with Vertical(classes="status-box"):
                     yield Label("System Status", classes="panel-header")
@@ -246,7 +248,8 @@ class HomeScreen(Screen):
             if not content:
                 return 0
             return len(content.split('\n'))
-        except Exception:
+        except Exception as e:
+            logger.debug(f"Failed to count output for step {step_name}: {e}")
             return 0
 
     def on_mount(self) -> None:
@@ -352,6 +355,7 @@ class HomeScreen(Screen):
                     )
 
         except Exception as e:
+            logger.warning(f"Failed to load dashboard data: {e}")
             self.notify(f"Failed to load dashboard data: {e}", severity="error")
 
 
@@ -408,6 +412,7 @@ class HomeScreen(Screen):
                     if run.id.startswith(short_id):
                         return run.id
         except Exception as e:
+            logger.warning(f"Failed to resolve selected run id: {e}")
             self.notify(f"Error: {e}", severity="error")
         return None
 
@@ -444,8 +449,8 @@ class HomeScreen(Screen):
             #confirm-dialog {
                 width: 50;
                 height: 10;
-                background: #1a1c29;
-                border: solid #ff0055;
+                background: $surface;
+                border: solid $error;
                 padding: 1 2;
             }
             
@@ -500,4 +505,5 @@ class HomeScreen(Screen):
                 self.notify(f"Failed to delete run", severity="error")
                 
         except Exception as e:
+            logger.warning(f"Failed to delete run {run_id}: {e}")
             self.notify(f"Delete failed: {e}", severity="error")

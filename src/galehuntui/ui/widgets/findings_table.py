@@ -74,8 +74,9 @@ class FindingsTableWidget(Widget):
     }
     FindingsTableWidget .findings-toolbar {
         height: 3;
-        background: #1a1c29;
+        background: $surface;
         padding: 0 1;
+        border-bottom: solid $border;
     }
     FindingsTableWidget .findings-toolbar Select {
         width: 16;
@@ -88,6 +89,7 @@ class FindingsTableWidget(Widget):
         width: auto;
         padding: 0 1;
         content-align: center middle;
+        color: $text-muted;
     }
     FindingsTableWidget DataTable {
         height: 1fr;
