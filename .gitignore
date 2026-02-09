@@ -161,3 +161,4 @@ runs/
 galehuntui.db
 galehuntui.db-shm
 galehuntui.db-wal
+config.yaml
