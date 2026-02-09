@@ -4,7 +4,7 @@ import hashlib
 import logging
 import sqlite3
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Optional
 
@@ -91,7 +91,12 @@ class MigrationRunner:
                     INSERT INTO schema_migrations (version, name, checksum, applied_at)
                     VALUES (?, ?, ?, ?)
                     """,
-                    (migration.version, migration.name, checksum, datetime.utcnow().isoformat()),
+                    (
+                        migration.version,
+                        migration.name,
+                        checksum,
+                        datetime.now(timezone.utc).isoformat(),
+                    ),
                 )
                 conn.commit()
                 applied.append(migration)

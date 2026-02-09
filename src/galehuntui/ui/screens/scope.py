@@ -1,6 +1,6 @@
 import logging
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Any, Optional
 import yaml
 
 from textual import work
@@ -24,6 +24,7 @@ from galehuntui.core.config import get_config_dir, get_user_config_path
 
 
 logger = logging.getLogger(__name__)
+IGNORED_SCOPE_FILENAMES = {"profiles.yaml", "modes.yaml", "registry.yaml"}
 
 class ScopeEditorScreen(Screen):
     """Screen for editing scope configurations."""
@@ -58,6 +59,14 @@ class ScopeEditorScreen(Screen):
     .form-group {
         height: auto;
         margin-bottom: 1;
+    }
+
+    .form-group-half {
+        width: 1fr;
+    }
+
+    .form-group-half-left {
+        margin-right: 1;
     }
     
     .form-label {
@@ -108,7 +117,8 @@ class ScopeEditorScreen(Screen):
     current_scope_path: reactive[Optional[Path]] = reactive(None)
     
     # Cache scope data: path -> parsed dict
-    _scope_cache: Dict[Path, Dict[str, Any]] = {}
+    _scope_cache: dict[Path, dict[str, Any]] = {}
+    _scope_item_paths: dict[str, Path] = {}
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -136,11 +146,11 @@ class ScopeEditorScreen(Screen):
                         yield TextArea(id="input-denylist")
 
                     with Horizontal(classes="form-group"):
-                        with Vertical(classes="form-group-half", style="width: 1fr; margin-right: 1;"):
+                        with Vertical(classes="form-group-half form-group-half-left"):
                             yield Label("Excluded Paths", classes="form-label")
                             yield TextArea(id="input-excl-paths")
                         
-                        with Vertical(classes="form-group-half", style="width: 1fr;"):
+                        with Vertical(classes="form-group-half"):
                             yield Label("Excluded Exts", classes="form-label")
                             yield TextArea(id="input-excl-exts")
 
@@ -167,7 +177,7 @@ class ScopeEditorScreen(Screen):
                 # or we just try to parse all yamls and check structure?
                 # For now, let's load all .yaml files in configs/ that look like scopes
                 # or just all .yaml files except known ones like profiles.yaml/modes.yaml
-                if p.name in ["profiles.yaml", "modes.yaml", "registry.yaml"]:
+                if p.name in IGNORED_SCOPE_FILENAMES:
                     continue
                 scope_files.append(p)
                 
@@ -175,11 +185,11 @@ class ScopeEditorScreen(Screen):
         user_config = get_user_config_path().parent
         if user_config.exists():
             for p in user_config.glob("*.yaml"):
-                if p.name in ["profiles.yaml", "modes.yaml", "registry.yaml"]:
+                if p.name in IGNORED_SCOPE_FILENAMES:
                     continue
                 scope_files.append(p)
                 
-        return sorted(list(set(scope_files)))
+        return sorted(set(scope_files))
 
     @work(exclusive=True)
     async def load_scopes(self) -> None:
@@ -190,30 +200,37 @@ class ScopeEditorScreen(Screen):
         await list_view.clear()
         
         self._scope_cache.clear()
+        self._scope_item_paths.clear()
         files = self.get_scope_files()
         
         first_valid = None
 
         for path in files:
             try:
-                # Try to load to verify it's a scope file and get the target
-                with open(path, "r") as f:
-                    data = yaml.safe_load(f)
-                
-                if not data or "target" not in data or "domain" not in data["target"]:
+                content = path.read_text(encoding="utf-8")
+                data = yaml.safe_load(content)
+                if not isinstance(data, dict):
                     continue
-                    
-                target = data["target"]["domain"]
+
+                target_data = data.get("target")
+                if not isinstance(target_data, dict):
+                    continue
+
+                target = target_data.get("domain")
+                if not isinstance(target, str) or not target.strip():
+                    continue
+
                 self._scope_cache[path] = data
                 
                 # Create list item with path as ID (sanitized)
                 safe_id = f"scope-{path.name.replace('.', '_')}"
                 list_view.append(ListItem(Label(target), id=safe_id))
+                self._scope_item_paths[safe_id] = path
                 
                 if not first_valid:
                     first_valid = path
                     
-            except (OSError, yaml.YAMLError, KeyError, TypeError) as e:
+            except (OSError, UnicodeDecodeError, yaml.YAMLError) as e:
                 logger.debug(f"Skipping invalid scope file {path}: {e}")
                 continue
         
@@ -226,16 +243,13 @@ class ScopeEditorScreen(Screen):
         if not event.item:
             return
             
-        # Find path from cache that matches the label or ID logic
-        # Since we can't easily store full path in ID safely, we look up by target name 
-        # or we just iterate our cache. 
-        # Better: iterate cache and match the label
-        selected_label = event.item.query_one(Label).renderable
-        
-        for path, data in self._scope_cache.items():
-            if str(selected_label) == data["target"]["domain"]:
-                self.load_scope_details(path)
-                return
+        item_id = event.item.id
+        if item_id is None:
+            return
+
+        selected_path = self._scope_item_paths.get(item_id)
+        if selected_path is not None:
+            self.load_scope_details(selected_path)
 
     def load_scope_details(self, path: Path) -> None:
         """Populate form with scope data from file."""
@@ -301,9 +315,11 @@ class ScopeEditorScreen(Screen):
         try:
             # Ensure directory exists
             save_path.parent.mkdir(parents=True, exist_ok=True)
-            
-            with open(save_path, "w") as f:
-                yaml.dump(data, f, sort_keys=False, default_flow_style=False)
+
+            yaml_content = yaml.safe_dump(data, sort_keys=False, default_flow_style=False)
+            if not isinstance(yaml_content, str):
+                raise yaml.YAMLError("Scope serialization must produce string output")
+            save_path.write_text(yaml_content, encoding="utf-8")
                 
             self.notify(f"Scope saved to {save_path.name}")
             
