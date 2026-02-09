@@ -1,0 +1,24 @@
+{
+  "include": [
+    "src",
+    "tests"
+  ],
+  "venvPath": ".",
+  "venv": ".venv",
+  "executionEnvironments": [
+    {
+      "root": "src",
+      "extraPaths": [
+        "src",
+        ".venv/lib/python3.14/site-packages"
+      ]
+    },
+    {
+      "root": "tests",
+      "extraPaths": [
+        "src",
+        ".venv/lib/python3.14/site-packages"
+      ]
+    }
+  ]
+}
