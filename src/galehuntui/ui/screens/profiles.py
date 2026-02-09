@@ -1,146 +1,81 @@
+from dataclasses import replace
+from typing import Optional
+
 from textual import on, work
 from textual.app import ComposeResult
-from textual.containers import Horizontal, Vertical, Container
+from textual.containers import Container, Horizontal, Vertical
+from textual.reactive import reactive
 from textual.screen import Screen
 from textual.widgets import (
-    Header,
-    Footer,
     Button,
+    Footer,
+    Header,
     Input,
     Label,
-    ListView,
     ListItem,
+    ListView,
     SelectionList,
     Static,
 )
-from textual.reactive import reactive
-from textual.message import Message
 
-from dataclasses import dataclass, field
-from typing import List, Optional
-import copy
+from galehuntui.core.config import load_profile_config, save_profiles_config
+from galehuntui.core.exceptions import ConfigError
+from galehuntui.core.models import ScanProfile
 
-# --- Mock Models & Persistence ---
 
-@dataclass
-class Profile:
-    id: str
-    name: str
-    description: str
-    timeout: int
-    rate_limit: str  # e.g. "50/s"
-    steps: List[str] = field(default_factory=list)
+TOOL_OPTIONS: list[tuple[str, str]] = [
+    ("Subfinder (Subdomain Enum)", "subfinder"),
+    ("DNSx (DNS Resolution)", "dnsx"),
+    ("HTTPx (HTTP Probing)", "httpx"),
+    ("Katana (Crawling)", "katana"),
+    ("GAU (URL Discovery)", "gau"),
+    ("Nuclei (Vuln Scanning)", "nuclei"),
+    ("Dalfox (XSS)", "dalfox"),
+    ("FFuF (Fuzzing)", "ffuf"),
+    ("SQLMap (SQL Injection)", "sqlmap"),
+]
 
-    @property
-    def label(self) -> str:
-        return f"{self.name}"
-
-class ProfileManager:
-    """Mock persistence for profiles."""
-    
-    def __init__(self):
-        self._profiles: List[Profile] = [
-            Profile(
-                id="quick",
-                name="Quick Scan",
-                description="Fast reconnaissance only",
-                timeout=300,
-                rate_limit="50/s",
-                steps=["subfinder", "dnsx", "httpx"]
-            ),
-            Profile(
-                id="standard",
-                name="Standard Scan",
-                description="Balanced recon + vuln scan",
-                timeout=1800,
-                rate_limit="30/s",
-                steps=["subfinder", "dnsx", "httpx", "katana", "gau", "nuclei"]
-            ),
-            Profile(
-                id="deep",
-                name="Deep Scan",
-                description="Full pipeline with injection testing",
-                timeout=7200,
-                rate_limit="10/s",
-                steps=["subfinder", "dnsx", "httpx", "katana", "gau", "nuclei", "dalfox", "ffuf", "sqlmap"]
-            ),
-        ]
-        self._available_tools = [
-            ("Subfinder (Subdomain Enum)", "subfinder"),
-            ("DNSx (DNS Resolution)", "dnsx"),
-            ("HTTPx (HTTP Probing)", "httpx"),
-            ("Katana (Crawling)", "katana"),
-            ("GAU (URL Discovery)", "gau"),
-            ("Nuclei (Vuln Scanning)", "nuclei"),
-            ("Dalfox (XSS)", "dalfox"),
-            ("FFuF (Fuzzing)", "ffuf"),
-            ("SQLMap (SQL Injection)", "sqlmap"),
-        ]
-
-    def get_all(self) -> List[Profile]:
-        return self._profiles
-
-    def get(self, profile_id: str) -> Optional[Profile]:
-        for p in self._profiles:
-            if p.id == profile_id:
-                return p
-        return None
-
-    def save(self, profile: Profile) -> None:
-        existing = self.get(profile.id)
-        if existing:
-            index = self._profiles.index(existing)
-            self._profiles[index] = profile
-        else:
-            self._profiles.append(profile)
-
-    def delete(self, profile_id: str) -> None:
-        self._profiles = [p for p in self._profiles if p.id != profile_id]
-        
-    def get_tools(self):
-        return self._available_tools
-
-# --- UI Screen ---
 
 class ProfilesScreen(Screen):
-    """Screen for managing scan profiles."""
-    
-    CSS_PATH = "../styles/main.tcss" # Reusing main styles + local if needed
-    
+    """Screen for managing scan profiles with YAML persistence."""
+
+    CSS_PATH = "../styles/main.tcss"
+
     BINDINGS = [
         ("escape", "app.pop_screen", "Back"),
     ]
-    
-    # Reactive state to track currently selected profile ID
+
     current_profile_id: reactive[Optional[str]] = reactive(None)
 
-    def __init__(self, name: str | None = None, id: str | None = None, classes: str | None = None):
+    def __init__(
+        self,
+        name: str | None = None,
+        id: str | None = None,
+        classes: str | None = None,
+    ):
         super().__init__(name, id, classes)
-        self.manager = ProfileManager()
-        self.is_dirty = False
+        self._profiles: dict[str, ScanProfile] = {}
 
     def compose(self) -> ComposeResult:
         yield Header()
-        
+
         with Container(classes="profiles-container"):
-            # Sidebar
             with Vertical(classes="profiles-sidebar"):
                 yield Label("Profiles", classes="section-title")
                 yield ListView(id="profiles-list")
                 yield Button("Create Profile", id="btn-new", variant="default", classes="sidebar-btn")
-            
-            # Main Content
+
             with Vertical(classes="profiles-content"):
                 yield Label("Profile Details", classes="section-title")
-                
+
                 with Vertical(classes="form-group"):
                     yield Label("Name")
                     yield Input(placeholder="Profile Name", id="input-name")
-                
+
                 with Vertical(classes="form-group"):
                     yield Label("Description")
                     yield Input(placeholder="Description", id="input-desc")
-                
+
                 with Horizontal(classes="form-row"):
                     with Vertical(classes="form-group-half"):
                         yield Label("Timeout (seconds)")
@@ -151,7 +86,7 @@ class ProfilesScreen(Screen):
 
                 yield Label("Pipeline Steps", classes="section-title mt-1")
                 yield SelectionList[str](id="list-steps")
-                
+
                 with Horizontal(classes="controls-bar"):
                     yield Static("Esc Back", classes="shortcut-hint")
                     yield Button("Delete Profile", variant="error", id="btn-delete", classes="mr-1")
@@ -161,158 +96,220 @@ class ProfilesScreen(Screen):
         yield Footer()
 
     def on_mount(self) -> None:
-        """Initialize the screen data."""
-        _ = self._refresh_list()
-        
-        # Populate tools selection list (static for now)
+        """Initialize profile data and step options."""
         steps_list = self.query_one("#list-steps", SelectionList)
-        for label, value in self.manager.get_tools():
+        for label, value in TOOL_OPTIONS:
             steps_list.add_option((label, value))
-            
-        # Select first profile if exists
-        profiles = self.manager.get_all()
-        if profiles:
+
+        self._load_profiles_from_disk()
+        _ = self._refresh_list()
+
+        if self._profiles:
+            first_profile_id = sorted(self._profiles.keys())[0]
             self.query_one("#profiles-list", ListView).index = 0
-            self._load_profile(profiles[0].id)
+            self._load_profile(first_profile_id)
+        else:
+            self.on_new_profile()
+
+    def _load_profiles_from_disk(self) -> None:
+        """Load profiles from profiles.yaml."""
+        try:
+            loaded = load_profile_config()
+            if not isinstance(loaded, dict):
+                raise ConfigError("Invalid profile configuration format")
+            self._profiles = loaded
+        except ConfigError as exc:
+            self.notify(f"Failed to load profiles: {exc}", severity="error")
+            self._profiles = {}
 
     @work(exclusive=True)
     async def _refresh_list(self) -> None:
         """Re-render the profiles list."""
         list_view = self.query_one("#profiles-list", ListView)
-        
-        # Await clear to ensure DOM is updated before adding new items
         await list_view.clear()
-        
-        # Now safe to add items
-        for profile in self.manager.get_all():
-            item = ListItem(Label(profile.name), id=f"profile-item-{profile.id}")
+
+        for profile_id in sorted(self._profiles.keys()):
+            profile = self._profiles[profile_id]
+            item = ListItem(Label(f"{profile.name} [{profile_id}]"), id=f"profile-item-{profile_id}")
             list_view.append(item)
 
     def _load_profile(self, profile_id: str) -> None:
         """Load profile data into the form."""
-        profile = self.manager.get(profile_id)
-        if not profile:
+        profile = self._profiles.get(profile_id)
+        if profile is None:
             return
 
         self.current_profile_id = profile_id
-        
+
         self.query_one("#input-name", Input).value = profile.name
         self.query_one("#input-desc", Input).value = profile.description
         self.query_one("#input-timeout", Input).value = str(profile.timeout)
         self.query_one("#input-rate", Input).value = profile.rate_limit
-        
+
         steps_list = self.query_one("#list-steps", SelectionList)
-        # Reset selection first
         steps_list.deselect_all()
-        
-        # Select steps for this profile
         for step in profile.steps:
-            # We need to find the option index or use select functionality
-            # SelectionList doesn't accept values directly easily in all versions, 
-            # but select() works with values if they exist.
             try:
                 steps_list.select(step)
             except (ValueError, KeyError):
-                # Step may not exist in selection list - skip invalid steps
                 continue
 
-    def _get_form_data(self) -> Profile:
-        """Collect data from form widgets."""
-        steps_list = self.query_one("#list-steps", SelectionList)
-        
-        # Generate a new ID if creating new, or use current
-        pid = self.current_profile_id if self.current_profile_id else f"profile_{len(self.manager.get_all()) + 1}"
-        
-        return Profile(
-            id=pid,
-            name=self.query_one("#input-name", Input).value,
-            description=self.query_one("#input-desc", Input).value,
-            timeout=int(self.query_one("#input-timeout", Input).value or "0"),
-            rate_limit=self.query_one("#input-rate", Input).value,
-            steps=steps_list.selected
+    def _normalize_profile_id(self, raw_name: str) -> str:
+        """Create filesystem-safe profile id from profile name."""
+        normalized = "".join(
+            char.lower() if char.isalnum() else "_"
+            for char in raw_name.strip()
         )
+        normalized = "_".join(part for part in normalized.split("_") if part)
+        if normalized:
+            return normalized
+        return f"profile_{len(self._profiles) + 1}"
+
+    def _next_available_profile_id(self, base_id: str) -> str:
+        """Generate a unique profile id based on a preferred base id."""
+        if base_id not in self._profiles:
+            return base_id
+
+        index = 2
+        while f"{base_id}_{index}" in self._profiles:
+            index += 1
+        return f"{base_id}_{index}"
+
+    def _collect_form_profile(self) -> tuple[str, ScanProfile]:
+        """Collect and validate profile data from form widgets."""
+        name = self.query_one("#input-name", Input).value.strip()
+        description = self.query_one("#input-desc", Input).value.strip()
+        timeout_value = self.query_one("#input-timeout", Input).value.strip()
+        rate_limit = self.query_one("#input-rate", Input).value.strip() or "30/s"
+        selected_steps = list(self.query_one("#list-steps", SelectionList).selected)
+
+        if not name:
+            raise ValueError("Profile name is required")
+
+        if not selected_steps:
+            raise ValueError("Select at least one pipeline step")
+
+        timeout = int(timeout_value or "0")
+        if timeout <= 0:
+            raise ValueError("Timeout must be a positive integer")
+
+        profile_id = self.current_profile_id
+        if profile_id is None:
+            profile_id = self._next_available_profile_id(
+                self._normalize_profile_id(name)
+            )
+
+        existing = self._profiles.get(profile_id)
+        concurrency = existing.concurrency if existing else 10
+        use_cases = existing.use_cases if existing else []
+
+        profile = ScanProfile(
+            name=name,
+            description=description,
+            steps=selected_steps,
+            concurrency=concurrency,
+            rate_limit=rate_limit,
+            timeout=timeout,
+            use_cases=use_cases,
+        )
+
+        return profile_id, profile
 
     @on(ListView.Selected, "#profiles-list")
     def on_profile_selected(self, event: ListView.Selected) -> None:
-        """Handle list selection."""
-        # Extract profile ID from ListItem ID "profile-item-{id}"
+        """Handle profile selection from list."""
         if event.item and event.item.id:
             profile_id = event.item.id.replace("profile-item-", "")
             self._load_profile(profile_id)
 
     @on(Button.Pressed, "#btn-new")
     def on_new_profile(self) -> None:
-        """Clear form for new profile."""
+        """Clear form for creating a new profile."""
         self.current_profile_id = None
         self.query_one("#profiles-list", ListView).index = None
-        
+
         self.query_one("#input-name", Input).value = ""
         self.query_one("#input-desc", Input).value = ""
         self.query_one("#input-timeout", Input).value = "300"
         self.query_one("#input-rate", Input).value = "30/s"
         self.query_one("#list-steps", SelectionList).deselect_all()
-        
         self.query_one("#input-name", Input).focus()
 
     @on(Button.Pressed, "#btn-save")
     def on_save(self) -> None:
-        """Save the current profile."""
+        """Save the current profile to profiles.yaml."""
         try:
-            profile = self._get_form_data()
-            if not profile.name:
-                self.notify("Profile name is required", severity="error")
-                return
-                
-            is_new = self.manager.get(profile.id) is None
-            
-            self.manager.save(profile)
-            self.notify(f"Profile '{profile.name}' saved!")
-            
-            # Refresh list and re-select
+            profile_id, profile = self._collect_form_profile()
+            self._profiles[profile_id] = profile
+            save_profiles_config(self._profiles)
+
+            self.current_profile_id = profile_id
             _ = self._refresh_list()
-            
-            # Find the item index to select it
-            profiles = self.manager.get_all()
-            for idx, p in enumerate(profiles):
-                if p.id == profile.id:
-                    self.query_one("#profiles-list", ListView).index = idx
-                    break
-            
-            self.current_profile_id = profile.id
-            
-        except ValueError:
-            self.notify("Invalid input format", severity="error")
+
+            profile_ids = sorted(self._profiles.keys())
+            selected_index = profile_ids.index(profile_id)
+            self.query_one("#profiles-list", ListView).index = selected_index
+
+            self.notify(f"Profile '{profile.name}' saved")
+        except ValueError as exc:
+            self.notify(str(exc), severity="error")
+        except ConfigError as exc:
+            self.notify(f"Failed to persist profile: {exc}", severity="error")
 
     @on(Button.Pressed, "#btn-clone")
     def on_clone(self) -> None:
         """Clone the currently selected profile."""
-        if not self.current_profile_id:
+        if self.current_profile_id is None:
+            self.notify("Select a profile to clone", severity="warning")
             return
-            
-        current = self.manager.get(self.current_profile_id)
-        if current:
-            new_profile = copy.deepcopy(current)
-            new_profile.id = f"{current.id}_copy_{len(self.manager.get_all())}"
-            new_profile.name = f"{current.name} (Copy)"
-            self.manager.save(new_profile)
-            
+
+        current_profile = self._profiles.get(self.current_profile_id)
+        if current_profile is None:
+            self.notify("Selected profile not found", severity="error")
+            return
+
+        clone_base_id = f"{self.current_profile_id}_copy"
+        clone_id = self._next_available_profile_id(clone_base_id)
+        cloned_profile = replace(current_profile, name=f"{current_profile.name} (Copy)")
+
+        try:
+            self._profiles[clone_id] = cloned_profile
+            save_profiles_config(self._profiles)
             _ = self._refresh_list()
-            self.notify(f"Cloned to '{new_profile.name}'")
+
+            profile_ids = sorted(self._profiles.keys())
+            selected_index = profile_ids.index(clone_id)
+            self.query_one("#profiles-list", ListView).index = selected_index
+            self._load_profile(clone_id)
+
+            self.notify(f"Cloned profile as '{clone_id}'")
+        except ConfigError as exc:
+            self.notify(f"Failed to persist cloned profile: {exc}", severity="error")
 
     @on(Button.Pressed, "#btn-delete")
     def on_delete(self) -> None:
         """Delete the currently selected profile."""
-        if not self.current_profile_id:
+        if self.current_profile_id is None:
+            self.notify("Select a profile to delete", severity="warning")
             return
-            
-        self.manager.delete(self.current_profile_id)
-        self.notify("Profile deleted")
-        _ = self._refresh_list()
-        
-        # Reset form or select first available
-        profiles = self.manager.get_all()
-        if profiles:
-            self.query_one("#profiles-list", ListView).index = 0
-            self._load_profile(profiles[0].id)
-        else:
+
+        deleted_profile_id = self.current_profile_id
+        profile_name = self._profiles[deleted_profile_id].name
+
+        del self._profiles[deleted_profile_id]
+
+        try:
+            save_profiles_config(self._profiles)
+            _ = self._refresh_list()
+            self.notify(f"Deleted profile '{profile_name}'")
+        except ConfigError as exc:
+            self.notify(f"Failed to persist profile deletion: {exc}", severity="error")
+            return
+
+        remaining_ids = sorted(self._profiles.keys())
+        if not remaining_ids:
             self.on_new_profile()
+            return
+
+        self.query_one("#profiles-list", ListView).index = 0
+        self._load_profile(remaining_ids[0])

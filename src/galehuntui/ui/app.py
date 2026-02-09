@@ -1,6 +1,6 @@
 import logging
 from pathlib import Path
-from typing import Any, Optional, Type
+from typing import Any, Optional, Type, TYPE_CHECKING
 
 import yaml
 
@@ -23,6 +23,9 @@ from galehuntui.ui.screens.setup import SetupWizardScreen
 from galehuntui.core.config import get_data_dir, get_user_config_path
 from galehuntui.storage.database import Database
 from galehuntui.ui.themes import GALEHUNT_THEMES
+
+if TYPE_CHECKING:
+    from galehuntui.orchestrator.pipeline import PipelineOrchestrator
 
 
 logger = logging.getLogger(__name__)
@@ -67,6 +70,7 @@ class GaleHunTUIApp(App):
         self.db: Database | None = None
         self.current_run_id: Optional[str] = None
         self._theme_names = list(GALEHUNT_THEMES.keys())
+        self._run_controllers: dict[str, "PipelineOrchestrator"] = {}
 
     def on_mount(self) -> None:
         self.title = "GaleHunTUI"
@@ -136,6 +140,18 @@ class GaleHunTUIApp(App):
         except (ValueError, IndexError):
             self.theme = self._theme_names[0]
             self.notify(f"Theme: {self._theme_names[0].title()}")
+
+    def register_run_controller(self, run_id: str, orchestrator: "PipelineOrchestrator") -> None:
+        """Register an active run controller so UI screens can control it."""
+        self._run_controllers[run_id] = orchestrator
+
+    def get_run_controller(self, run_id: str) -> Optional["PipelineOrchestrator"]:
+        """Get active run controller by run id."""
+        return self._run_controllers.get(run_id)
+
+    def unregister_run_controller(self, run_id: str) -> None:
+        """Remove run controller after run completes or fails."""
+        self._run_controllers.pop(run_id, None)
 
 if __name__ == "__main__":
     app = GaleHunTUIApp()

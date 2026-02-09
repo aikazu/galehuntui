@@ -1,9 +1,5 @@
 from pathlib import Path
-from typing import List, Tuple
 from uuid import uuid4
-from datetime import datetime
-import asyncio
-import importlib
 import logging
 
 from textual.screen import Screen
@@ -17,7 +13,6 @@ from textual.widgets import (
     Button,
     Checkbox,
     Collapsible,
-    Static,
     RadioSet,
     RadioButton,
 )
@@ -26,12 +21,10 @@ from textual.app import ComposeResult
 from textual.binding import Binding
 
 from galehuntui.core.constants import EngagementMode
-from galehuntui.core.config import load_profile_config, get_config_dir, load_scope_config, get_data_dir
-from galehuntui.core.models import RunMetadata, ScopeConfig, RunConfig, RunState
+from galehuntui.core.config import load_profile_config, get_config_dir, get_data_dir
 from galehuntui.core.exceptions import ConfigError
 from galehuntui.storage.database import Database
-from galehuntui.orchestrator.pipeline import PipelineOrchestrator
-from galehuntui.orchestrator.state import RunStateManager
+from galehuntui.orchestrator.factory import create_pipeline_orchestrator
 from galehuntui.ui.screens.run_detail import RunDetailScreen
 
 
@@ -281,10 +274,7 @@ class NewRunScreen(Screen):
         # Start background execution
         _worker = self._execute_run(run_id, target, profile, mode_value, scope_file)
         
-        # Instantiate and push RunDetailScreen
-        # We manually set the run_id on the screen instance so it can use it (if updated)
-        run_detail_screen = RunDetailScreen()
-        run_detail_screen.run_id = run_id  # Monkey-patch/set attribute for future use
+        run_detail_screen = RunDetailScreen(run_id=run_id)
         
         # Close this screen and push run detail
         # We use call_after_refresh to ensure smooth transition
@@ -298,107 +288,37 @@ class NewRunScreen(Screen):
     async def _execute_run(self, run_id: str, target: str, profile_name: str, mode_value: str, scope_file: str) -> None:
         """Execute the pipeline in the background."""
         try:
-            # 1. Setup paths
             data_dir = get_data_dir()
             db_path = data_dir / "galehuntui.db"
-            run_dir = data_dir / "runs" / run_id
-            
-            # Create directories
-            for subdir in ["artifacts", "evidence", "reports"]:
-                (run_dir / subdir).mkdir(parents=True, exist_ok=True)
-            
-            # 2. Initialize Database
-            db = Database(db_path)
-            db.init_db()
-            
-            # 3. Load Configurations
-            scope_config = load_scope_config(scope_file)
-            
-            profiles = load_profile_config()
-            if not isinstance(profiles, dict):
-                raise ValueError("Invalid profiles configuration format")
 
-            if profile_name not in profiles:
-                raise ValueError(f"Profile {profile_name} not found")
-            scan_profile = profiles[profile_name]
-            
-            engagement_mode = EngagementMode(mode_value)
-            
-            # 4. Create RunMetadata
-            now = datetime.now()
-            run_metadata = RunMetadata(
-                id=run_id,
-                target=target,
-                profile=profile_name,
-                engagement_mode=engagement_mode,
-                state=RunState.PENDING,
-                created_at=now,
-                started_at=now,
-                run_dir=run_dir,
-                artifacts_dir=run_dir / "artifacts",
-                evidence_dir=run_dir / "evidence",
-                reports_dir=run_dir / "reports",
-            )
-            
-            # Save initial state
-            db.save_run(run_metadata)
-            
-            # 5. Initialize Adapters (Dynamically to match CLI pattern)
-            tools_dir = Path.cwd() / "tools"
-            
-            adapters = {}
-            adapter_modules = {
-                "subfinder": "galehuntui.tools.adapters.subfinder",
-                "dnsx": "galehuntui.tools.adapters.dnsx",
-                "httpx": "galehuntui.tools.adapters.httpx",
-                "katana": "galehuntui.tools.adapters.katana",
-                "gau": "galehuntui.tools.adapters.gau",
-                "nuclei": "galehuntui.tools.adapters.nuclei",
-                "dalfox": "galehuntui.tools.adapters.dalfox",
-                "ffuf": "galehuntui.tools.adapters.ffuf",
-                "sqlmap": "galehuntui.tools.adapters.sqlmap",
-            }
-            
-            # Load adapters for steps in profile
-            # Note: ToolAdapterBase expects bin_path to be the directory containing binaries
-            # It constructs _tool_binary = bin_path / self.name internally
-            bin_dir = tools_dir / "bin"
-            for tool_name in scan_profile.steps:
-                if tool_name in adapter_modules:
-                    try:
-                        mod = importlib.import_module(adapter_modules[tool_name])
-                        adapter_class = getattr(mod, f"{tool_name.capitalize()}Adapter", None)
-                        if adapter_class:
-                            adapters[tool_name] = adapter_class(bin_dir)
-                    except (ImportError, AttributeError, TypeError, ValueError, OSError) as e:
-                        logger.warning(f"Failed to load adapter {tool_name}: {e}")
-                        # Continue with warning
-                        self.app.notify(f"Warning: Failed to load {tool_name}: {e}", severity="warning")
+            with Database(db_path) as db:
+                db.init_db()
 
-            # 6. Initialize Orchestrator
-            orchestrator = PipelineOrchestrator.create_standard_pipeline(
-                adapters=adapters,
-                target=target,
-                profile=scan_profile,
-                scope=scope_config,
-                engagement_mode=engagement_mode,
-            )
-            orchestrator.db = db
-            
-            # Replace the state manager with one using our run_id
-            # This ensures the run_id in DB matches the orchestrator's state
-            orchestrator.state = RunStateManager(
-                orchestrator.run_config,
-                run_id=run_id,
-                base_dir=data_dir / "runs",
-                db=db,
-            )
-            
-            # 7. Run Pipeline
-            _state = await orchestrator.run(target)
-            
+                engagement_mode = EngagementMode(mode_value)
+
+                orchestrator = create_pipeline_orchestrator(
+                    target=target,
+                    profile_name=profile_name,
+                    engagement_mode=engagement_mode,
+                    db=db,
+                    scope_file=Path(scope_file),
+                    run_id=run_id,
+                    runs_base_dir=data_dir / "runs",
+                    tools_dir=Path.cwd() / "tools",
+                )
+
+                register_controller = getattr(self.app, "register_run_controller", None)
+                if callable(register_controller):
+                    register_controller(run_id, orchestrator)
+
+                _state = await orchestrator.run(target)
+
             self.app.notify(f"Run {run_id} completed successfully!", severity="information")
-            
+
         except Exception as e:
             logger.exception(f"Run {run_id} execution failed: {e}")
             self.app.notify(f"Run {run_id} failed: {e}", severity="error")
+        finally:
+            unregister_controller = getattr(self.app, "unregister_run_controller", None)
+            if callable(unregister_controller):
+                unregister_controller(run_id)

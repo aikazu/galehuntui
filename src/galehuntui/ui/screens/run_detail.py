@@ -1,10 +1,10 @@
 import logging
 from pathlib import Path
 from datetime import datetime
-from typing import Set
+from typing import Optional, Protocol, Set, runtime_checkable
 
 from textual.app import ComposeResult
-from textual.screen import Screen
+from textual.screen import ModalScreen, Screen
 from textual.widgets import (
     Header, Footer, Label, Button, DataTable, RichLog, ProgressBar, 
     TabbedContent, TabPane, Static
@@ -17,8 +17,71 @@ from galehuntui.core.models import RunState, PipelineStep, Finding, Severity, Ru
 from galehuntui.core.constants import StepStatus
 from galehuntui.core.config import get_data_dir
 from galehuntui.core.utils import classify_finding
+from galehuntui.reporting.generator import ReportGenerator
+from galehuntui.ui.screens.finding_detail import FindingDetailScreen
 
 logger = logging.getLogger(__name__)
+
+
+@runtime_checkable
+class RunControllerProtocol(Protocol):
+    """Protocol for active run controls exposed to the UI."""
+
+    async def pause(self) -> None:
+        ...
+
+    async def resume(self) -> None:
+        ...
+
+    async def cancel(self) -> None:
+        ...
+
+
+class CancelRunConfirmScreen(ModalScreen[bool]):
+    """Confirmation modal before cancelling an active run."""
+
+    CSS = """
+    CancelRunConfirmScreen {
+        align: center middle;
+    }
+
+    #cancel-confirm-dialog {
+        width: 60;
+        height: 11;
+        background: $surface;
+        border: solid $error;
+        padding: 1 2;
+    }
+
+    #cancel-confirm-buttons {
+        margin-top: 1;
+        align: center middle;
+    }
+
+    #cancel-confirm-buttons Button {
+        margin: 0 1;
+    }
+    """
+
+    def __init__(self, run_id: str, target: str):
+        super().__init__()
+        self._run_id = run_id
+        self._target = target
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="cancel-confirm-dialog"):
+            yield Label("Cancel active run?")
+            yield Label(f"Run: {self._run_id[:12]} | Target: {self._target}")
+            yield Label("The current execution will stop after this signal.")
+            with Horizontal(id="cancel-confirm-buttons"):
+                yield Button("Cancel Run", variant="error", id="btn-confirm-cancel")
+                yield Button("Keep Running", id="btn-dismiss-cancel")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "btn-confirm-cancel":
+            self.dismiss(True)
+            return
+        self.dismiss(False)
 
 def count_output_items(output_path: Path | None) -> int:
     """Count items in a JSON lines output file."""
@@ -239,9 +302,13 @@ class RunDetailScreen(Screen):
         super().__init__(**kwargs)
         self.run_id = run_id
         self._polling = False
+        self._poll_in_progress = False
+        self._last_run_state: Optional[RunState] = None
         self._seen_finding_ids: Set[str] = set()
         self._seen_step_row_ids: Set[str] = set()
         self._last_step_states: dict[str, str] = {}
+        self._findings_by_id: dict[str, Finding] = {}
+        self._latest_findings: list[Finding] = []
         self._db_path = get_data_dir() / "galehuntui.db"
 
     def compose(self) -> ComposeResult:
@@ -286,7 +353,7 @@ class RunDetailScreen(Screen):
 
                 # Right: Logs/Findings with 5 tabs
                 with Container(classes="content-panel"):
-                    with TabbedContent():
+                    with TabbedContent(id="content-tabs"):
                         with TabPane("Live Logs", id="tab-logs"):
                             yield RichLog(highlight=True, markup=True, id="run-log")
                         with TabPane("Subdomain (0)", id="tab-subdomain"):
@@ -381,14 +448,17 @@ class RunDetailScreen(Screen):
 
     async def _poll_updates(self) -> None:
         """Poll database for updates."""
-        if not self.run_id or not self._polling:
+        if not self.run_id or not self._polling or self._poll_in_progress:
             return
+
+        self._poll_in_progress = True
         try:
-            _ = self._fetch_updates()
+            await self._fetch_updates()
         except Exception as e:
             logger.debug(f"Polling error: {e}")
+        finally:
+            self._poll_in_progress = False
 
-    @work(exclusive=True)
     async def _fetch_updates(self) -> None:
         """Worker to fetch updates."""
         try:
@@ -450,6 +520,44 @@ class RunDetailScreen(Screen):
             pause_btn.disabled = True
             
         self.query_one("#btn-cancel", Button).disabled = not run.is_active
+
+        if self._last_run_state is not None and self._last_run_state != run.state:
+            self._log_run_state_transition(self._last_run_state, run.state)
+        self._last_run_state = run.state
+
+    def _log_run_state_transition(self, previous: RunState, current: RunState) -> None:
+        """Log and notify when run state changes."""
+        log = self.query_one("#run-log", RichLog)
+
+        state_messages: dict[RunState, tuple[str, str, str]] = {
+            RunState.RUNNING: ("cyan", "▶", "Run resumed"),
+            RunState.PAUSED: ("yellow", "⏸", "Run paused"),
+            RunState.COMPLETED: ("green", "✓", "Run completed"),
+            RunState.FAILED: ("red", "✗", "Run failed"),
+            RunState.CANCELLED: ("orange1", "■", "Run cancelled"),
+            RunState.PENDING: ("dim", "○", "Run pending"),
+        }
+
+        color, icon, message = state_messages.get(current, ("white", "○", current.name.title()))
+        log.write(f"[{color}]{icon}[/] {message} ([dim]{previous.name} -> {current.name}[/])")
+
+        severity = "information"
+        if current == RunState.FAILED:
+            severity = "error"
+        elif current == RunState.CANCELLED:
+            severity = "warning"
+        self.notify(message, severity=severity)
+
+    def _read_run_metadata(self) -> Optional[RunMetadata]:
+        """Read latest run metadata from database."""
+        if self.run_id is None:
+            return None
+
+        db = Database(self._db_path)
+        try:
+            return db.get_run(self.run_id)
+        finally:
+            db.close()
 
     def _update_progress(self, run: RunMetadata) -> None:
         """Update progress bar."""
@@ -530,6 +638,10 @@ class RunDetailScreen(Screen):
         livedomain_table = self.query_one("#livedomain-table", DataTable)
         info_table = self.query_one("#info-table", DataTable)
         log = self.query_one("#run-log", RichLog)
+
+        self._latest_findings = findings
+        for finding in findings:
+            self._findings_by_id[finding.id] = finding
         
         colors = {
             Severity.CRITICAL: "red",
@@ -609,24 +721,183 @@ class RunDetailScreen(Screen):
         log.write(f"Profile: {run.profile}")
         log.write(f"State: {run.state.name}")
         log.write("")
-        
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        """Wire control buttons to actions."""
+        if event.button.id == "btn-pause":
+            self.action_toggle_pause()
+        elif event.button.id == "btn-cancel":
+            self.action_cancel_run()
+        elif event.button.id == "btn-export":
+            _ = self._export_report()
+
+    def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
+        """Open finding detail when selecting a vulnerability row."""
+        if event.data_table.id != "findings-table":
+            return
+
+        if event.row_key is None or event.row_key.value is None:
+            return
+
+        finding_id = str(event.row_key.value)
+        selected_finding = self._findings_by_id.get(finding_id)
+        if selected_finding is None:
+            self.notify("Selected finding is no longer available", severity="warning")
+            return
+
+        vulnerability_findings = [
+            finding for finding in self._latest_findings
+            if classify_finding(finding) == "findings"
+        ]
+        if not vulnerability_findings:
+            self.notify("No findings available", severity="warning")
+            return
+
+        selected_index = 0
+        for index, finding in enumerate(vulnerability_findings):
+            if finding.id == selected_finding.id:
+                selected_index = index
+                break
+
+        self.app.push_screen(
+            FindingDetailScreen(vulnerability_findings, selected_index)
+        )
+
+    def _get_run_controller(self) -> Optional[RunControllerProtocol]:
+        """Resolve active run controller from app registry."""
+        if not self.run_id:
+            return None
+
+        getter = getattr(self.app, "get_run_controller", None)
+        if not callable(getter):
+            return None
+        controller = getter(self.run_id)
+        if isinstance(controller, RunControllerProtocol):
+            return controller
+        return None
+
     def action_toggle_pause(self) -> None:
-        self.notify("Control commands not yet implemented", severity="warning")
+        _ = self._toggle_pause_resume()
 
     def action_cancel_run(self) -> None:
-        self.notify("Sending cancel signal...", severity="warning")
+        run = self._read_run_metadata()
+        if run is None:
+            self.notify("Run not found", severity="error")
+            return
+
+        if not run.is_active:
+            self.notify("Run is already finished", severity="warning")
+            return
+
+        def on_confirmed(confirmed: bool) -> None:
+            if confirmed:
+                _ = self._cancel_active_run()
+
+        self.app.push_screen(
+            CancelRunConfirmScreen(run.id, run.target),
+            on_confirmed,
+        )
+
+    @work(exclusive=True)
+    async def _toggle_pause_resume(self) -> None:
+        """Pause or resume the active run via orchestrator control."""
+        if self.run_id is None:
+            self.notify("No run selected", severity="error")
+            return
+
+        controller = self._get_run_controller()
+        if controller is None:
+            self.notify("Live control unavailable for this run", severity="warning")
+            return
+
+        run = self._read_run_metadata()
+
+        if run is None:
+            self.notify("Run not found", severity="error")
+            return
+
+        if run.state == RunState.RUNNING:
+            await controller.pause()
+            self.notify("Pause signal sent", severity="information")
+            return
+
+        if run.state == RunState.PAUSED:
+            await controller.resume()
+            self.notify("Resume signal sent", severity="information")
+            return
+
+        self.notify("Run is not in a controllable state", severity="warning")
+
+    @work(exclusive=True)
+    async def _cancel_active_run(self) -> None:
+        """Cancel an active run via orchestrator control."""
+        if self.run_id is None:
+            self.notify("No run selected", severity="error")
+            return
+
+        controller = self._get_run_controller()
+        if controller is None:
+            self.notify("Live control unavailable for this run", severity="warning")
+            return
+
+        run = self._read_run_metadata()
+
+        if run is None:
+            self.notify("Run not found", severity="error")
+            return
+
+        if run.state not in (RunState.PENDING, RunState.RUNNING, RunState.PAUSED):
+            self.notify("Run is already finished", severity="warning")
+            return
+
+        await controller.cancel()
+        self.notify("Cancel signal sent", severity="warning")
+
+    @work(exclusive=True)
+    async def _export_report(self) -> None:
+        """Export HTML and JSON reports for current run."""
+        if self.run_id is None:
+            self.notify("No run selected", severity="error")
+            return
+
+        db = Database(self._db_path)
+        try:
+            run = db.get_run(self.run_id)
+            if run is None:
+                self.notify("Run not found", severity="error")
+                return
+
+            if not run.is_finished:
+                self.notify("Report export is available after run completion", severity="warning")
+                return
+
+            generator = ReportGenerator(db)
+            output_paths = generator.generate_and_export(self.run_id, run.reports_dir)
+            exported_formats = ", ".join(sorted(output_paths.keys()))
+            self.notify(f"Report exported: {exported_formats}", severity="information")
+        except Exception as exc:
+            logger.exception("Report export failed for run %s", self.run_id)
+            self.notify(f"Report export failed: {exc}", severity="error")
+        finally:
+            db.close()
+
+    def _activate_tab_and_focus(self, tab_id: str, selector: str) -> None:
+        """Switch to tab and focus a widget inside it."""
+        tabs = self.query_one("#content-tabs", TabbedContent)
+        tabs.active = tab_id
+        self.query_one(selector).focus()
 
     def action_focus_logs(self) -> None:
-        self.query_one("#run-log").focus()
+        self._activate_tab_and_focus("tab-logs", "#run-log")
 
     def action_focus_subdomains(self) -> None:
-        self.query_one("#subdomain-table").focus()
+        self._activate_tab_and_focus("tab-subdomain", "#subdomain-table")
 
     def action_focus_livedomain(self) -> None:
-        self.query_one("#livedomain-table").focus()
+        self._activate_tab_and_focus("tab-livedomain", "#livedomain-table")
 
     def action_focus_findings(self) -> None:
-        self.query_one("#findings-table").focus()
+        self._activate_tab_and_focus("tab-findings", "#findings-table")
 
     def action_focus_info(self) -> None:
-        self.query_one("#info-table").focus()
+        self._activate_tab_and_focus("tab-info", "#info-table")
