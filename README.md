@@ -253,8 +253,8 @@ galehuntui plugins disable <plugin_name>
 # Show plugin details
 galehuntui plugins info <plugin_name>
 
-# Validate a plugin file
-galehuntui plugins validate /path/to/plugin.py
+# Validate a plugin (omit name to validate all)
+galehuntui plugins validate <plugin_name>
 ```
 
 #### Export Reports
@@ -338,7 +338,7 @@ GaleHunTUI supports real-time notifications via Slack and Discord webhooks.
 Add webhook configuration to your settings:
 
 ```yaml
-# ~/.config/galehuntui/config.yaml
+# ./config.yaml
 notifications:
   webhooks:
     - name: "security-alerts"
@@ -479,7 +479,7 @@ GaleHunTUI supports community-developed tool adapter plugins to extend functiona
 Plugins are discovered from two sources:
 
 1. **Entry Points**: Installed via pip with `galehuntui.plugins.tools` entry point
-2. **Plugin Directory**: `~/.local/share/galehuntui/plugins/`
+2. **Plugin Directory**: `data/plugins/`
 
 ### Creating a Plugin
 
@@ -525,7 +525,7 @@ class MyToolPlugin(ToolPlugin):
 
 ```bash
 # Copy to plugin directory
-cp my_tool_plugin.py ~/.local/share/galehuntui/plugins/
+cp my_tool_plugin.py data/plugins/
 
 # Or install via pip (for packaged plugins)
 pip install galehuntui-my-tool-plugin
@@ -606,7 +606,7 @@ galehuntui/
 ### Data Storage
 
 ```
-~/.local/share/galehuntui/
+./data/
 ├── galehuntui.db              # SQLite database (WAL mode)
 ├── logs/                      # Application logs
 ├── audit/                     # Audit logs

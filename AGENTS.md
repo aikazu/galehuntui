@@ -14,7 +14,7 @@
 | **Language** | Python 3.11+ |
 | **TUI Framework** | Textual |
 | **CLI Framework** | Typer |
-| **Status** | MVP Complete (218 tests passing) |
+| **Status** | MVP Complete (256 tests in suite) |
 
 ### Vision Statement
 
@@ -91,6 +91,8 @@ galehuntui/
 |   +-- core/                 # Core infrastructure (IMPLEMENTED)
 |   |   +-- __init__.py
 |   |   +-- config.py         # Configuration loader (YAML + Pydantic)
+|   |   +-- audit.py          # Audit logger
+|   |   +-- utils.py          # Shared core utilities
 |   |   +-- models.py         # Finding, ToolResult, ToolConfig, RunMetadata
 |   |   +-- exceptions.py     # Custom exception hierarchy
 |   |   +-- constants.py      # Enums (EngagementMode, PipelineStage, etc.)
@@ -98,6 +100,7 @@ galehuntui/
 |   +-- orchestrator/         # Pipeline coordination (IMPLEMENTED)
 |   |   +-- __init__.py
 |   |   +-- pipeline.py       # PipelineOrchestrator class
+|   |   +-- factory.py        # Orchestrator factory helpers
 |   |   +-- scheduler.py      # AsyncTaskScheduler
 |   |   +-- state.py          # RunStateManager
 |   |
@@ -123,6 +126,7 @@ galehuntui/
 |   |   |   +-- ffuf.py
 |   |   |   +-- sqlmap.py
 |   |   |   +-- wfuzz.py
+|   |   |   +-- hydra.py
 |   |   +-- deps/             # Dependency managers (IMPLEMENTED)
 |   |       +-- __init__.py
 |   |       +-- registry.yaml   # Dependency definitions
@@ -192,6 +196,9 @@ galehuntui/
 |       |   +-- log_view.py       # LogViewWidget class
 |       |   +-- progress.py       # PipelineProgressWidget class
 |       |   +-- findings_table.py # FindingsTableWidget class
+|       +-- themes/
+|       |   +-- __init__.py
+|       |   +-- builtin.py      # Built-in TUI themes
 |       +-- styles/
 |           +-- __init__.py
 |           +-- main.tcss     # Textual CSS
@@ -205,7 +212,7 @@ galehuntui/
 |   +-- modes.yaml
 |   +-- test_scope.yaml
 |
-+-- tests/                    # Test suite (218 tests)
++-- tests/                    # Test suite (256 tests)
 |   +-- test_classifier/
 |   |   +-- __init__.py
 |   |   +-- test_classifier.py   # 40 tests
@@ -220,9 +227,17 @@ galehuntui/
 |   +-- test_orchestrator/
 |   |   +-- __init__.py
 |   |   +-- test_pipeline.py     # 35 tests
+|   |   +-- test_state.py        # 3 tests
+|   +-- test_core/
+|   |   +-- __init__.py
+|   |   +-- test_audit.py        # 16 tests
+|   |   +-- test_config.py       # 1 test
 |   +-- test_storage/
 |       +-- __init__.py
 |       +-- test_database.py     # 33 tests
+|   +-- test_ui/
+|       +-- __init__.py
+|       +-- test_themes.py       # 18 tests
 |
 +-- .sisyphus/                # Work tracking
 |   +-- plans/
@@ -230,7 +245,6 @@ galehuntui/
 |
 +-- pyproject.toml
 +-- README.md
-+-- IDEA.md                   # Full specification
 +-- AGENTS.md                 # This file
 +-- .gitignore
 ```
@@ -250,7 +264,7 @@ galehuntui/
 | Models | Pydantic / dataclasses | Validation and serialization |
 | Templates | Jinja2 | HTML report generation |
 | HTTP Client | httpx | Async HTTP requests |
-| Testing | unittest | Standard library (218 tests) |
+| Testing | unittest | Standard library (256 tests) |
 | Isolation | Docker | Preferred runner |
 
 ---
@@ -277,7 +291,8 @@ constraints:
 from pathlib import Path
 
 # Project root is the workspace directory
-project_root = Path(__file__).parent.parent
+# (from src/galehuntui/core/config.py depth)
+project_root = Path(__file__).parent.parent.parent.parent
 config_path = project_root / "config.yaml"
 data_dir = project_root / "data"
 tools_bin = project_root / "tools" / "bin"
@@ -603,17 +618,15 @@ URLs are classified for targeted testing:
 
 STATIC_EXTENSIONS = {
     # Images
-    '.png', '.jpg', '.jpeg', '.gif', '.svg', '.ico', '.webp', '.bmp', '.tiff',
+    '.png', '.jpg', '.jpeg', '.gif', '.svg', '.ico', '.webp',
     # Documents
-    '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
+    '.pdf', '.doc', '.docx', '.xls', '.xlsx',
     # Assets
-    '.css', '.js', '.woff', '.woff2', '.ttf', '.eot', '.otf',
+    '.css', '.js', '.woff', '.woff2', '.ttf', '.eot',
     # Media
-    '.mp3', '.mp4', '.avi', '.mov', '.webm', '.wav', '.flac', '.ogg',
+    '.mp3', '.mp4', '.avi', '.mov', '.webm',
     # Archives
-    '.zip', '.tar', '.gz', '.rar', '.7z', '.bz2',
-    # Other
-    '.map', '.min.js', '.min.css',
+    '.zip', '.tar', '.gz', '.rar',
 }
 ```
 
@@ -637,19 +650,19 @@ Three engagement modes control feature availability and rate limiting:
 ```python
 # src/galehuntui/core/constants.py
 
-class EngagementMode(str, Enum):
-    BUGBOUNTY = "bugbounty"
+class EngagementMode(Enum):
+    BUG_BOUNTY = "bugbounty"
     AUTHORIZED = "authorized"
     AGGRESSIVE = "aggressive"
 
 RATE_LIMITS = {
-    EngagementMode.BUGBOUNTY: {"global": 30, "per_host": 5},
+    EngagementMode.BUG_BOUNTY: {"global": 30, "per_host": 5},
     EngagementMode.AUTHORIZED: {"global": 100, "per_host": 20},
     EngagementMode.AGGRESSIVE: {"global": 500, "per_host": 100},
 }
 
 CONCURRENCY_LIMITS = {
-    EngagementMode.BUGBOUNTY: {"min": 5, "max": 10},
+    EngagementMode.BUG_BOUNTY: {"min": 5, "max": 10},
     EngagementMode.AUTHORIZED: {"min": 20, "max": 50},
     EngagementMode.AGGRESSIVE: {"min": 50, "max": 100},
 }
@@ -663,7 +676,7 @@ The application has 11 main screens:
 
 | Screen | Purpose | Key Bindings |
 |--------|---------|--------------|
-| **Home Dashboard** | Overview, recent runs, quick actions | N, Q, T, S, P |
+| **Home Dashboard** | Overview, recent runs, quick actions | N, T, S, P, D, Enter |
 | **New Run** | Configure and start new scan | Enter, Tab, Esc |
 | **Run Detail** | Monitor running/completed scan | C, P, E, O |
 | **Tools Manager** | Install, update, verify tools | U, R, I, A |
@@ -845,9 +858,17 @@ tests/
 +-- test_orchestrator/
 |   +-- __init__.py
 |   +-- test_pipeline.py        # 35 tests
+|   +-- test_state.py           # 3 tests
++-- test_core/
+|   +-- __init__.py
+|   +-- test_audit.py           # 16 tests
+|   +-- test_config.py          # 1 test
 +-- test_storage/
+|   +-- __init__.py
+|   +-- test_database.py        # 33 tests
++-- test_ui/
     +-- __init__.py
-    +-- test_database.py        # 33 tests
+    +-- test_themes.py          # 18 tests
 ```
 
 ### Running Tests
@@ -894,12 +915,20 @@ galehuntui tools verify
 # Dependency management
 galehuntui deps install --all
 galehuntui deps update nuclei-templates
+galehuntui deps list
 galehuntui deps clean
 
 # Run management
 galehuntui runs list
 galehuntui runs show <run_id>
 galehuntui runs delete <run_id>
+
+# Plugin management
+galehuntui plugins list
+galehuntui plugins enable <plugin_name>
+galehuntui plugins disable <plugin_name>
+galehuntui plugins info <plugin_name>
+galehuntui plugins validate [plugin_name]
 
 # Export
 galehuntui export <run_id> --format html
@@ -952,6 +981,7 @@ galehuntui export <run_id> --format json
 > **CRITICAL**: No finding shall be recorded without corresponding evidence files.
 
 Every `Finding` object MUST have:
+
 - Request/response data saved
 - Screenshot (if applicable)
 - Tool raw output preserved
@@ -959,6 +989,7 @@ Every `Finding` object MUST have:
 ### Scope Enforcement
 
 All tools MUST respect scope configuration:
+
 - Check URL against allowlist/denylist before processing
 - Log out-of-scope attempts to audit log
 - Block or warn based on engagement mode
@@ -966,6 +997,7 @@ All tools MUST respect scope configuration:
 ### Rate Limiting
 
 All HTTP operations MUST respect rate limits:
+
 - Global limit applies across all tools
 - Per-host limit prevents target overload
 - Adaptive backoff on slow responses or 429s
@@ -973,6 +1005,7 @@ All HTTP operations MUST respect rate limits:
 ### Audit Logging
 
 Sensitive operations MUST be logged:
+
 - Mode changes
 - Aggressive feature enablement
 - Data extraction attempts
@@ -1027,6 +1060,7 @@ dev = [
 All major roadmap items have been implemented:
 
 ### Backend Infrastructure
+
 - [x] `tools/registry.yaml` - Tool definitions file
 - [x] `tools/deps/manager.py` - Dependency manager
 - [x] `tools/deps/wordlists.py` - Wordlist manager
@@ -1040,6 +1074,7 @@ All major roadmap items have been implemented:
 - [x] Plugin system for community adapters
 
 ### TUI Screen Wiring (All screens now use real backends)
+
 - [x] `home.py` - Real stats from Database, actual run history
 - [x] `new_run.py` - Triggers PipelineOrchestrator via background worker
 - [x] `run_detail.py` - Polls database for real-time progress/findings
@@ -1053,6 +1088,7 @@ All major roadmap items have been implemented:
 - [x] `help.py` - Static content (no backend needed)
 
 ### Core Model Enhancements
+
 - [x] `ScopeConfig.is_in_scope()` - Full URL/pattern validation with fnmatch
 - [x] `get_data_dir()` helper in config.py
 
